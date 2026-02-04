@@ -38,3 +38,4 @@ A locally hosted device tracking SaaS for repair shops.
 ## Architecture
 - **Backend**: Python (Flask) + SQLite
 - **Frontend**: HTML5 + Vanilla JS + Tailwind CSS (CDN)
+# product_track_site
