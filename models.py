@@ -29,7 +29,7 @@ class Device(db.Model):
     
     model = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(50), default='Σε Εκκρεμότητα') 
+    status = db.Column(db.String(50), default='Παραλήφθηκε') 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_archived = db.Column(db.Boolean, default=False)
     

@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 <div class="flex flex-col items-center justify-center min-h-screen p-4 bg-gradient-to-br from-slate-900 to-slate-800">
     <!-- Hero Section -->
     <div class="text-center mb-10">
@@ -28,8 +29,8 @@
                 <span id="currentStatus"
                     class="inline-block mt-2 px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm font-semibold">Ready</span>
             </div>
-            <div class="text-right">
-                <i class="fas fa-mobile-alt text-4xl text-slate-600"></i>
+            <div class="text-right w-24 h-24" id="mainStatusAnim">
+                <!-- Main Status Animation Will Go Here -->
             </div>
         </div>
 
@@ -71,18 +72,47 @@
             document.getElementById('deviceModel').textContent = data.device.model;
             document.getElementById('currentStatus').textContent = data.device.status;
 
+            // ANIMATION MAPPING
+            const animMap = {
+                'Παραλήφθηκε': 'https://assets5.lottiefiles.com/packages/lf20_j1adxtyb.json', // Box/Package
+                'Σε Έλεγχο': 'https://assets8.lottiefiles.com/packages/lf20_iorpbol0.json', // Search/Check
+                'Αναμονή Ανταλλακτικού': 'https://assets2.lottiefiles.com/packages/lf20_42B8LS.json', // Time/Wait
+                'Υπό Επισκευή': 'https://assets10.lottiefiles.com/packages/lf20_w51pcehl.json', // Tools/Repair
+                'Έτοιμο': 'https://assets9.lottiefiles.com/packages/lf20_s2lryxtd.json', // Checkmark/Success
+                'Παραδόθηκε': 'https://assets3.lottiefiles.com/packages/lf20_xYF7kG.json' // Delivery/Handshake
+            };
+
+            // Main Status Animation
+            const mainAnimUrl = animMap[data.device.status] || animMap['Παραλήφθηκε'];
+            document.getElementById('mainStatusAnim').innerHTML = `
+                <lottie-player src="${mainAnimUrl}" background="transparent" speed="1" style="width: 100px; height: 100px;" loop autoplay></lottie-player>
+            `;
+
             const timelineList = document.getElementById('timelineList');
-            timelineList.innerHTML = data.device.timeline.map(item => `
-            <div class="relative">
-                <div class="absolute -left-[31px] bg-slate-900 border-2 border-blue-500 w-4 h-4 rounded-full"></div>
-                <div class="mb-1">
-                    <span class="text-blue-400 text-sm font-semibold">${item.date}</span>
-                    <span class="text-slate-500 text-xs ml-2">(${item.staff})</span>
+            timelineList.innerHTML = data.device.timeline.map((item, index) => {
+                const animUrl = animMap[item.status];
+                // Only show animation for the latest item or if desired for all? 
+                // Let's do a micro-animation (icon size) for all items to look cool.
+                const iconHtml = animUrl
+                    ? `<lottie-player src="${animUrl}" background="transparent" speed="1" style="width: 40px; height: 40px;" loop autoplay></lottie-player>`
+                    : `<div class="bg-gray-700 w-8 h-8 rounded-full"></div>`;
+
+                return `
+            <div class="relative flex items-start space-x-4">
+                <div class="flex-shrink-0 mt-1">
+                    ${iconHtml}
                 </div>
-                <h3 class="text-lg font-medium text-white">${item.status}</h3>
-                <p class="text-slate-400 text-sm mt-1">${item.note || ''}</p>
+                <div class="flex-grow">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-lg font-medium text-white">${item.status}</h3>
+                        <span class="text-blue-400 text-sm font-semibold">${item.date}</span>
+                    </div>
+                    <p class="text-slate-400 text-sm mb-1">${item.note || ''}</p>
+                    <span class="text-slate-600 text-xs bg-slate-800 px-2 py-1 rounded border border-slate-700">User: ${item.staff}</span>
+                </div>
             </div>
-        `).join('');
+            `;
+            }).join('');
 
             container.classList.remove('hidden');
 

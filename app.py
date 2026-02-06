@@ -4,12 +4,13 @@ import qrcode
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Device, TimelineLog, SystemSetting, NotificationLog, Customer
 
+import os
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'dev-secret-key-change-in-prod' # TODO: Env var
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///repair_shop_v7.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -25,6 +26,8 @@ def load_user(user_id):
 
 def generate_device_id():
     # Format: TS-YYYY-XXX
+    # NOTE: This implementation has a race condition. High concurrency could result in duplicate IDs.
+    # Consider using database sequences or a UUID in production.
     year = datetime.now().year
     count = Device.query.filter(Device.created_at >= datetime(year, 1, 1)).count()
     return f"TS-{year}-{count + 1:03d}"
@@ -51,24 +54,21 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-@app.route('/create_admin')
-def create_admin():
-    # Helper to create initial admin
-    if User.query.filter_by(role='admin').first():
-        return "Admin already exists."
-    
-    hashed_pw = generate_password_hash('admin123')
-    new_user = User(username='admin', password_hash=hashed_pw, role='admin')
-    db.session.add(new_user)
-    db.session.commit()
-    return "Admin created! (User: admin, Pass: admin123)"
+# @app.route('/create_admin')
+# def create_admin():
+#     # Helper to create initial admin - DISABLED FOR SECURITY
+#     # Run via flask shell if needed:
+#     # from app import db, User
+#     # from werkzeug.security import generate_password_hash
+#     # db.session.add(User(username='admin', password_hash=generate_password_hash('admin123'), role='admin'))
+#     # db.session.commit()
+#     return "Route disabled. Use CLI."
 
 # --- Routes: Public ---
 @app.route('/')
 def index():
     return render_template('index.html')
 
-import requests
 import json
 
 # --- INFOBIP SERVICE ---
@@ -371,13 +371,13 @@ def add_device():
             customer_id=customer.id,
             model=data.get('model'),
             description=data.get('description'),
-            status='Σε Εκκρεμότητα',
+            status='Παραλήφθηκε',
             created_by_id=current_user.id
         )
         db.session.add(device)
         
         # Initial log
-        log = TimelineLog(device=device, status='Σε Εκκρεμότητα', note='Device registered', user_id=current_user.id)
+        log = TimelineLog(device=device, status='Παραλήφθηκε', note='Device registered', user_id=current_user.id)
         db.session.add(log)
         db.session.commit()
         
