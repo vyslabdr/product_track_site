@@ -31,9 +31,10 @@ A locally hosted device tracking SaaS for repair shops.
    - **Dashboard**: [http://localhost:5000/dashboard](http://localhost:5000/dashboard)
 
 ## Default Credentials
-- **Create Admin**: Visit [http://localhost:5000/create_admin](http://localhost:5000/create_admin) once to generate the admin user.
+- **Auto-Seeding**: The admin user is automatically created on first run.
 - **User**: `admin`
 - **Password**: `admin123`
+- **First Login**: You will be required to change the password immediately.
 
 ## Architecture
 - **Backend**: Python (Flask) + SQLite

@@ -33,6 +33,13 @@ def generate_device_id():
     return f"TS-{year}-{count + 1:03d}"
 
 # --- Routes: Auth ---
+@app.before_request
+def check_first_login():
+    if current_user.is_authenticated and getattr(current_user, 'is_first_login', False):
+        if request.endpoint not in ['change_password', 'logout', 'static']:
+            flash('Security Alert: You must change your password on first login.', 'warning')
+            return redirect(url_for('change_password'))
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -44,9 +51,40 @@ def login():
             user.last_login = datetime.utcnow()
             db.session.commit()
             login_user(user)
+            
+            # Check immediately after login
+            if getattr(user, 'is_first_login', False):
+                flash('Security notice: First login detected. Please change your password.', 'warning')
+                return redirect(url_for('change_password'))
+                
             return redirect(url_for('dashboard'))
         flash('Invalid username or password', 'error')
     return render_template('login.html')
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        new_password = request.form.get('new_password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not new_password or not confirm_password:
+            flash('All fields are required', 'error')
+            return render_template('change_password.html')
+            
+        if new_password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return render_template('change_password.html')
+            
+        # Update Password
+        current_user.password_hash = generate_password_hash(new_password)
+        current_user.is_first_login = False
+        db.session.commit()
+        
+        flash('Password updated successfully. Access granted.', 'success')
+        return redirect(url_for('dashboard'))
+        
+    return render_template('change_password.html')
 
 @app.route('/logout')
 @login_required
@@ -486,6 +524,19 @@ def delete_staff(user_id):
 # --- Init DB ---
 with app.app_context():
     db.create_all()
+    
+    # Auto-Seed Admin if not exists
+    if not User.query.first():
+        print("Auto-seeding Admin user...")
+        admin_user = User(
+            username='admin', 
+            password_hash=generate_password_hash('admin123'), 
+            role='admin',
+            is_first_login=True  # Force change on first login
+        )
+        db.session.add(admin_user)
+        db.session.commit()
+        print("Admin created: admin / admin123")
 
 if __name__ == '__main__':
     app.run(debug=True)
