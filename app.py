@@ -24,20 +24,28 @@ login_manager.login_view = 'login'
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+import random
+import string
+
 def generate_device_id():
-    # Format: TS-YYYY-XXX
-    # NOTE: This implementation has a race condition. High concurrency could result in duplicate IDs.
-    # Consider using database sequences or a UUID in production.
-    year = datetime.now().year
-    count = Device.query.filter(Device.created_at >= datetime(year, 1, 1)).count()
-    return f"TS-{year}-{count + 1:03d}"
+    """Generates a unique SER-ID (e.g., SER7A2B9)."""
+    prefix = "SER"
+    
+    while True:
+        # Generate 6 random characters (uppercase letters + digits)
+        chars = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        new_id = f"{prefix}{chars}"
+        
+        # Check uniqueness against DB
+        if not Device.query.filter_by(tracking_id=new_id).first():
+            return new_id
 
 # --- Routes: Auth ---
 @app.before_request
 def check_first_login():
     if current_user.is_authenticated and getattr(current_user, 'is_first_login', False):
         if request.endpoint not in ['change_password', 'logout', 'static']:
-            flash('Security Alert: You must change your password on first login.', 'warning')
+            flash('Ειδοποίηση Ασφαλείας: Πρέπει να αλλάξετε τον κωδικό σας στην πρώτη σύνδεση.', 'warning')
             return redirect(url_for('change_password'))
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -54,26 +62,35 @@ def login():
             
             # Check immediately after login
             if getattr(user, 'is_first_login', False):
-                flash('Security notice: First login detected. Please change your password.', 'warning')
+                flash('Ειδοποίηση: Πρώτη σύνδεση. Παρακαλούμε αλλάξτε τον κωδικό σας.', 'warning')
                 return redirect(url_for('change_password'))
                 
             return redirect(url_for('dashboard'))
-        flash('Invalid username or password', 'error')
+        flash('Λανθασμένο όνομα χρήστη ή κωδικός πρόσβασης', 'error')
     return render_template('login.html')
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
     if request.method == 'POST':
+        current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
-        if not new_password or not confirm_password:
-            flash('All fields are required', 'error')
+        if not current_password or not new_password or not confirm_password:
+            flash('Όλα τα πεδία είναι υποχρεωτικά.', 'error')
+            return render_template('change_password.html')
+            
+        if not check_password_hash(current_user.password_hash, current_password):
+            flash('Ο τρέχων κωδικός είναι λάθος.', 'error')
+            return render_template('change_password.html')
+
+        if len(new_password) < 8:
+            flash('Ο νέος κωδικός πρέπει να είναι τουλάχιστον 8 χαρακτήρες.', 'error')
             return render_template('change_password.html')
             
         if new_password != confirm_password:
-            flash('Passwords do not match', 'error')
+            flash('Οι κωδικοί δεν ταιριάζουν.', 'error')
             return render_template('change_password.html')
             
         # Update Password
@@ -81,7 +98,7 @@ def change_password():
         current_user.is_first_login = False
         db.session.commit()
         
-        flash('Password updated successfully. Access granted.', 'success')
+        flash('Ο κωδικός ενημερώθηκε επιτυχώς.', 'success')
         return redirect(url_for('dashboard'))
         
     return render_template('change_password.html')
@@ -314,16 +331,18 @@ def get_devices():
             # Complex filter: (technician_id == uid) OR (created_by_id == uid)
             query = query.filter((Device.technician_id == user_id) | (Device.created_by_id == user_id))
 
-    # Status Filter - Map to new Greek terms
-    # Σύνολο(All), Σε αναμονή(Pending-Yellow), Στην επισκευή(Repair-Blue), Έτοιμο(Ready-Green), Παραδόθηκε(Archive)
+    # Status Filter - Greek Terms
+    # Παραλήφθηκε (Yellow), Υπό Έλεγχο (Blue), Υπό Επισκευή (Orange), Έτοιμο (Green), Αρχείο (Gray)
     if status_filter == 'archive':
         query = query.filter_by(is_archived=True)
     elif status_filter == 'ready':
         query = query.filter_by(status='Έτοιμο', is_archived=False)
     elif status_filter == 'repair':
         query = query.filter_by(status='Υπό Επισκευή', is_archived=False)
-    elif status_filter == 'pending':
-        query = query.filter_by(status='Σε Εκκρεμότητα', is_archived=False)
+    elif status_filter == 'checking':
+        query = query.filter_by(status='Υπό Έλεγχο', is_archived=False)
+    elif status_filter == 'received':
+        query = query.filter_by(status='Παραλήφθηκε', is_archived=False)
     elif status_filter == 'active': 
         query = query.filter_by(is_archived=False)
         
@@ -361,20 +380,19 @@ def get_stats():
                 q = q.filter(Device.status.in_(status_list))
         return q.count()
 
-    total = count_with_filter(None, archived=False)
-    # Map new statuses
-    in_repair = count_with_filter(['Υπό Επισκευή'], archived=False)
-    ready = count_with_filter(['Έτοιμο'], archived=False)
-    # Pending is separate in UI now? User said: Σύνολο, Σε εκκρεμότητα, Στην επισκευή, Έτοιμο, Παραδόθηκε
-    # We should return pending too if needed by UI, or map 'in_repair' to include it if UI only has 4 cards.
-    # User requested 5 cards in list: Σύνολο, Σε εκκρεμότητα, Στην επισκευή, Έτοιμο, Παραδόθηκε
-    pending = count_with_filter(['Σε Εκκρεμότητα'], archived=False)
-    completed = count_with_filter(None, archived=True) # Or filter by Παραδόθηκε status specifically if needed, but Archive is explicit
+    # 6-Card System (Greek)
+    total = count_with_filter(None, archived=False) # Σύνολο
+    received = count_with_filter(['Παραλήφθηκε'], archived=False) # Yellow
+    checking = count_with_filter(['Υπό Έλεγχο'], archived=False) # Blue
+    repair = count_with_filter(['Υπό Επισκευή'], archived=False) # Orange
+    ready = count_with_filter(['Έτοιμο'], archived=False) # Green
+    completed = count_with_filter(None, archived=True) # Αρχείο
     
     return jsonify({
         'total': total,
-        'pending': pending,
-        'in_repair': in_repair,
+        'received': received,
+        'checking': checking,
+        'repair': repair,
         'ready': ready,
         'completed': completed
     })
@@ -404,6 +422,7 @@ def add_device():
 
         new_id = generate_device_id()
         
+        # Default status: Παραλήφθηκε
         device = Device(
             tracking_id=new_id,
             customer_id=customer.id,
@@ -418,6 +437,7 @@ def add_device():
         log = TimelineLog(device=device, status='Παραλήφθηκε', note='Device registered', user_id=current_user.id)
         db.session.add(log)
         db.session.commit()
+
         
         # TRIGGER NOTIFICATION
         send_infobip_message(device, 'registration')
@@ -448,7 +468,7 @@ def update_status(device_id):
     if new_status == 'Υπό Επισκευή' and not device.technician_id:
         device.technician_id = current_user.id
 
-    if new_status == 'Παραδόθηκε':
+    if new_status == 'Αρχείο':
         device.is_archived = True
     else:
         device.is_archived = False # Allow un-archiving
@@ -460,7 +480,7 @@ def update_status(device_id):
     # TRIGGER NOTIFICATION
     if new_status == 'Έτοιμο':
         send_infobip_message(device, 'ready')
-    elif new_status == 'Παραδόθηκε':
+    elif new_status == 'Αρχείο':
         send_infobip_message(device, 'delivered')
     
     return jsonify({'success': True})

@@ -1,42 +1,48 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="flex items-center justify-center min-h-screen bg-slate-900">
-    <div class="w-full max-w-md p-8 bg-slate-800 rounded-2xl shadow-xl border border-slate-700">
-        <h2 class="text-3xl font-bold text-center mb-8 text-white">Staff Login</h2>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        {% for category, message in messages %}
-        <div class="p-3 rounded mb-4 text-center border
-                    {% if category == 'error' %} bg-red-500/10 border-red-500 text-red-400
-                    {% elif category == 'warning' %} bg-yellow-500/10 border-yellow-500 text-yellow-400
-                    {% elif category == 'success' %} bg-green-500/10 border-green-500 text-green-400
-                    {% else %} bg-blue-500/10 border-blue-500 text-blue-400 {% endif %}">
-            {{ message }}
+<div class="container d-flex align-items-center justify-content-center min-vh-100">
+    <div class="card shadow-lg border-0" style="max-width: 400px; width: 100%;">
+        <div class="card-header bg-corporate text-white text-center p-4 rounded-top">
+            <h3 class="mb-0"><i class="fas fa-user-shield me-2"></i>Είσοδος Προσωπικού</h3>
         </div>
-        {% endfor %}
-        {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="{{ url_for('login') }}" class="space-y-6">
-            <div>
-                <label class="block text-slate-400 mb-2">Username</label>
-                <input type="text" name="username" required
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none">
+        <div class="card-body p-5 bg-white">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category == 'error' else 'warning' if category == 'warning' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show"
+                role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
 
-            <div>
-                <label class="block text-slate-400 mb-2">Password</label>
-                <input type="password" name="password" required
-                    class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none">
-            </div>
+            <form method="POST" action="{{ url_for('login') }}">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Όνομα Χρήστη</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="fas fa-user"></i></span>
+                        <input type="text" name="username" required class="form-control"
+                            placeholder="Εισάγετε όνομα χρήστη">
+                    </div>
+                </div>
 
-            <button type="submit"
-                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">
-                Είσοδος
-            </button>
-        </form>
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Κωδικός Πρόσβασης</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light"><i class="fas fa-lock"></i></span>
+                        <input type="password" name="password" required class="form-control"
+                            placeholder="Εισάγετε κωδικό">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 py-2 fw-bold shadow-sm">
+                    <i class="fas fa-sign-in-alt me-2"></i>Είσοδος
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}

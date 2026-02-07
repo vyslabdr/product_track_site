@@ -1,249 +1,273 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="flex h-screen overflow-hidden bg-slate-900">
-    <!-- LEFT SIDEBAR - FIXED -->
-    <div
-        class="w-[350px] flex-shrink-0 bg-slate-800 border-r border-slate-700 p-6 flex flex-col overflow-y-auto z-20 shadow-xl">
-        <div class="mb-8">
-            <h1 class="text-2xl font-bold text-blue-400 mb-1">Repair Shop</h1>
-            <p class="text-slate-500 text-sm">Dashboard</p>
-            <div class="mt-4 flex items-center justify-between text-sm">
-                <span class="text-slate-300"><i class="fas fa-user mr-2"></i>{{ user.username }}</span>
-                <a href="{{ url_for('logout') }}" class="text-red-400 hover:text-red-300">Αποσύνδεση</a>
-            </div>
-            <!-- Current Staff Filter Indicator -->
-            <div id="staffFilterIndicator"
-                class="hidden mt-4 bg-purple-500/20 text-purple-300 px-3 py-2 rounded-lg text-xs flex justify-between items-center border border-purple-500/30">
-                <span>Filter: <strong id="filterStaffName">User</strong></span>
-                <button onclick="clearStaffFilter()" class="hover:text-white"><i class="fas fa-times"></i></button>
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-corporate sticky-top shadow-sm">
+    <div class="container-fluid">
+        <a class="navbar-brand fw-bold" href="#">Service Dashboard</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link active" href="#" onclick="switchView('active')" id="nav-active"><i
+                            class="fas fa-home me-1"></i> Πίνακας Ελέγχου</a>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link btn btn-link text-start text-white" data-bs-toggle="modal"
+                        data-bs-target="#addDeviceModal"><i class="fas fa-plus-circle me-1"></i> Νέα Συσκευή</button>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#" onclick="switchView('archive')" id="nav-archive"><i
+                            class="fas fa-archive me-1"></i> Αρχείο</a>
+                </li>
+                {% if user.role == 'admin' %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button"
+                        data-bs-toggle="dropdown">
+                        <i class="fas fa-cogs me-1"></i> Διαχείριση
+                    </a>
+                    <ul class="dropdown-menu border-0 shadow">
+                        <li><a class="dropdown-item" href="#" onclick="switchView('staff')">Προσωπικό</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="switchView('settings')">Ρυθμίσεις</a></li>
+                    </ul>
+                </li>
+                {% endif %}
+            </ul>
+            <div class="d-flex align-items-center">
+                <span class="navbar-text me-3 text-light"><i class="fas fa-user me-1"></i>{{ user.username }}</span>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline-light btn-sm">Έξοδος</a>
             </div>
         </div>
+    </div>
+</nav>
 
-        <!-- NEW DEVICE FORM -->
-        <div id="addDeviceForm" class="tab-content flex-grow">
-            <h3 class="text-xl font-bold text-white mb-4">Καταχώρηση Συσκευής</h3>
-            <form onsubmit="handleAddDevice(event)" class="space-y-4">
-                <div>
-                    <label class="block text-slate-400 text-sm mb-1">Ονοματεπώνυμο Πελάτη</label>
-                    <input type="text" name="customer_name" required
-                        class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:ring-2 focus:ring-blue-500">
+<div class="container-fluid py-4">
+    <!-- Filters / Stats Row (6 Cards Dynamic) -->
+    <div class="row g-2 mb-4" id="statsRow">
+        <!-- 1. Total -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('all')" id="card-all">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-muted text-uppercase small" style="font-size: 0.75rem;">Συνολο
+                        Προιοντων</h6>
+                    <h3 class="card-title mb-0 text-primary" id="stat-total">-</h3>
                 </div>
-                <div>
-                    <label class="block text-slate-400 text-sm mb-1">Τηλέφωνο</label>
-                    <input type="text" name="phone" required
-                        class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-slate-400 text-sm mb-1">Μοντέλο Συσκευής</label>
-                    <input type="text" name="model" required
-                        class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div>
-                    <label class="block text-slate-400 text-sm mb-1">Περιγραφή Προβλήματος</label>
-                    <textarea name="description" rows="3"
-                        class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-white focus:ring-2 focus:ring-blue-500"></textarea>
-                </div>
-                <button type="submit"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg transform active:scale-95 transition-all">
-                    <i class="fas fa-plus mr-2"></i> Καταχώρηση
-                </button>
-            </form>
+            </div>
         </div>
-
-        <!-- STAFF FORM (Hidden by default) -->
+        <!-- 2. Received (Warning/Yellow) -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('received')" id="card-received">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-warning text-uppercase small" style="font-size: 0.75rem;">
+                        Παραληφθηκε</h6>
+                    <h3 class="card-title text-warning mb-0" id="stat-received">-</h3>
+                </div>
+            </div>
+        </div>
+        <!-- 3. Checking (Info/Blue) -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('checking')" id="card-checking">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-info text-uppercase small" style="font-size: 0.75rem;">Υπο Ελεγχο
+                    </h6>
+                    <h3 class="card-title text-info mb-0" id="stat-checking">-</h3>
+                </div>
+            </div>
+        </div>
+        <!-- 4. Repair (Orange - Custom Style) -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('repair')" id="card-repair">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-uppercase small" style="font-size: 0.75rem; color: #fd7e14;">Υπο
+                        Επισκευη</h6>
+                    <h3 class="card-title mb-0" style="color: #fd7e14;" id="stat-repair">-</h3>
+                </div>
+            </div>
+        </div>
+        <!-- 5. Ready (Success/Green) -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('ready')" id="card-ready">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-success text-uppercase small" style="font-size: 0.75rem;">Ετοιμο
+                    </h6>
+                    <h3 class="card-title text-success mb-0" id="stat-ready">-</h3>
+                </div>
+            </div>
+        </div>
+        <!-- 6. Archive (Secondary/Gray) -->
+        <div class="col-6 col-md-4 col-xl-2">
+            <div class="card bg-white text-dark border-0 shadow-sm h-100 cursor-pointer transition-hover"
+                onclick="filterByStatus('archive')" id="card-archive">
+                <div class="card-body p-3 text-center">
+                    <h6 class="card-subtitle mb-2 text-secondary text-uppercase small" style="font-size: 0.75rem;">
+                        Αρχειο</h6>
+                    <h3 class="card-title text-secondary mb-0" id="stat-completed">-</h3>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- RIGHT CONTENT - SCROLLABLE -->
-    <div class="flex-grow flex flex-col bg-slate-900 h-full overflow-hidden relative">
-
-        <!-- TOP STATS BAR (Interactive Filters) -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 p-6 bg-slate-800/50 border-b border-slate-700">
-            <!-- TOTAL: Neutral Gray/Blue -->
-            <div onclick="filterByStatus('all')" id="card-all"
-                class="cursor-pointer bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-sm flex items-center justify-between hover:bg-slate-700 transition-all ring-2 ring-transparent group">
-                <div>
-                    <p class="text-[10px] md:text-xs text-slate-400 uppercase font-bold tracking-wider">Συνολο Συσκευων
-                    </p>
-                    <h3 class="text-2xl font-bold text-white group-hover:text-blue-200 transition-colors"
-                        id="stat-total">-</h3>
-                </div>
-                <div class="bg-slate-700 p-2 rounded text-slate-300"><i class="fas fa-folder"></i></div>
-            </div>
-
-            <!-- PENDING: Orange (Warning) -->
-            <div onclick="filterByStatus('pending')" id="card-pending"
-                class="cursor-pointer bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-sm flex items-center justify-between hover:bg-slate-700 transition-all ring-2 ring-transparent group">
-                <div>
-                    <p class="text-[10px] md:text-xs text-slate-400 uppercase font-bold tracking-wider">Σε Εκκρεμοτητα
-                    </p>
-                    <h3 class="text-2xl font-bold text-orange-500 group-hover:text-orange-400 transition-colors"
-                        id="stat-pending">-</h3>
-                </div>
-                <div class="bg-orange-500/20 p-2 rounded text-orange-500"><i class="fas fa-exclamation-circle"></i>
-                </div>
-            </div>
-
-            <!-- IN REPAIR: Bright Blue (Active) -->
-            <div onclick="filterByStatus('repair')" id="card-repair"
-                class="cursor-pointer bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-sm flex items-center justify-between hover:bg-slate-700 transition-all ring-2 ring-transparent group">
-                <div>
-                    <p class="text-[10px] md:text-xs text-slate-400 uppercase font-bold tracking-wider">Υπο Επισκευη</p>
-                    <h3 class="text-2xl font-bold text-blue-500 group-hover:text-blue-400 transition-colors"
-                        id="stat-repair">-</h3>
-                </div>
-                <div class="bg-blue-500/20 p-2 rounded text-blue-500"><i class="fas fa-tools"></i></div>
-            </div>
-
-            <!-- READY: Vivid Green (Success) -->
-            <div onclick="filterByStatus('ready')" id="card-ready"
-                class="cursor-pointer bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-sm flex items-center justify-between hover:bg-slate-700 transition-all ring-2 ring-transparent group">
-                <div>
-                    <p class="text-[10px] md:text-xs text-slate-400 uppercase font-bold tracking-wider">Ετοιμα προς
-                        Παραδοση</p>
-                    <h3 class="text-2xl font-bold text-green-500 group-hover:text-green-400 transition-colors"
-                        id="stat-ready">-</h3>
-                </div>
-                <div class="bg-green-500/20 p-2 rounded text-green-500"><i class="fas fa-check-circle"></i></div>
-            </div>
-
-            <!-- DELIVERED: Dark Gray -->
-            <div onclick="filterByStatus('archive')" id="card-archive"
-                class="cursor-pointer bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-sm flex items-center justify-between hover:bg-slate-700 transition-all ring-2 ring-transparent group">
-                <div>
-                    <p class="text-[10px] md:text-xs text-slate-400 uppercase font-bold tracking-wider">Παραδοθηκε</p>
-                    <h3 class="text-2xl font-bold text-slate-500 group-hover:text-slate-400 transition-colors"
-                        id="stat-completed">-</h3>
-                </div>
-                <div class="bg-slate-700/50 p-2 rounded text-slate-500"><i class="fas fa-archive"></i></div>
+    <!-- Controls Row -->
+    <div class="row mb-4 align-items-center" id="controlsRow">
+        <div class="col-md-6 mb-3 mb-md-0">
+            <div class="input-group shadow-sm">
+                <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                <input type="text" id="searchInput" onkeyup="filterList()" class="form-control border-start-0"
+                    placeholder="Αναζήτηση (Όνομα, Τηλέφωνο, SER ID)...">
             </div>
         </div>
-
-        <!-- TABS & ACTIONS -->
-        <div class="px-6 py-4 flex items-center justify-between border-b border-slate-800">
-            <div class="flex space-x-4">
-                <button onclick="switchView('active')" id="btn-active"
-                    class="px-4 py-2 rounded-full text-sm font-bold bg-blue-600 text-white transition-all">
-                    Aktif Cihazlar
-                </button>
-                <button onclick="switchView('archive')" id="btn-archive"
-                    class="px-4 py-2 rounded-full text-sm font-bold bg-slate-800 text-slate-400 hover:text-white transition-all">
-                    Αρχείο (Archive)
-                </button>
-                {% if user.role == 'admin' %}
-                <button onclick="switchView('staff')" id="btn-staff"
-                    class="px-4 py-2 rounded-full text-sm font-bold bg-slate-800 text-slate-400 hover:text-white transition-all">
-                    Προσωπικό (Staff)
-                </button>
-                <button onclick="switchView('settings')" id="btn-settings"
-                    class="px-4 py-2 rounded-full text-sm font-bold bg-slate-800 text-slate-400 hover:text-white transition-all">
-                    <i class="fas fa-cogs"></i> Ρυθμίσεις
-                </button>
-                {% endif %}
-            </div>
-
-            <!-- Global Search -->
-            <div class="relative w-64" id="globalSearchContainer">
-                <i class="fas fa-search absolute left-3 top-2.5 text-slate-500"></i>
-                <input type="text" id="searchInput" onkeyup="filterList()" placeholder="Αναζήτηση..."
-                    class="w-full bg-slate-800 border-none rounded-full py-2 pl-10 pr-4 text-sm text-white focus:ring-2 focus:ring-blue-500 placeholder-slate-500">
+        <div class="col-md-6 text-md-end">
+            <div id="staffFilterIndicator" class="d-none d-inline-block">
+                <span class="badge bg-info-subtle text-info border border-info-subtle p-2">
+                    Χρήστης: <strong id="filterStaffName">User</strong>
+                    <button type="button" class="btn-close ms-2" aria-label="Close"
+                        onclick="clearStaffFilter()"></button>
+                </span>
             </div>
         </div>
+    </div>
 
-        <!-- MAIN CONTENT AREA -->
-        <div class="flex-grow overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900"
-            id="mainContent">
-            <div class="text-center text-slate-500 mt-10"><i class="fas fa-circle-notch fa-spin text-2xl"></i>
-                Φόρτωση...</div>
+    <!-- Main Content -->
+    <div id="mainContent" class="table-responsive">
+        <div class="text-center text-muted mt-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2">Φόρτωση...</div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Device Modal -->
+<div class="modal fade" id="addDeviceModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-corporate text-white">
+                <h5 class="modal-title">Καταχώρηση Συσκευής</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="handleAddDevice(event)" id="addDeviceFormElement">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ονοματεπώνυμο Πελάτη</label>
+                        <input type="text" name="customer_name" required class="form-control" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Τηλέφωνο</label>
+                        <input type="text" name="phone" required class="form-control" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Μοντέλο Συσκευής</label>
+                        <input type="text" name="model" required class="form-control" autocomplete="off">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Περιγραφή Προβλήματος</label>
+                        <textarea name="description" rows="3" class="form-control"></textarea>
+                    </div>
+                    <!-- Status defaults to Received automatically in backend -->
+                    <button type="submit" class="btn btn-primary w-100"><i
+                            class="fas fa-plus me-2"></i>Καταχώρηση</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Update Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-corporate text-white">
+                <h5 class="modal-title">Ενημέρωση Κατάστασης</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="handleUpdateStatus(event)">
+                    <input type="hidden" id="statusDeviceId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Νέα Κατάσταση</label>
+                        <select id="newStatus" class="form-select">
+                            <option value="Παραλήφθηκε">Παραλήφθηκε (Device Received - Yellow)</option>
+                            <option value="Υπό Έλεγχο">Υπό Έλεγχο (Checking - Blue)</option>
+                            <option value="Υπό Επισκευή">Υπό Επισκευή (Repairing - Orange)</option>
+                            <option value="Έτοιμο">Έτοιμο (Ready - Green)</option>
+                            <option value="Αρχείο">Αρχείο (Archive - Gray)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Σημείωση</label>
+                        <textarea id="statusNote" rows="3" class="form-control"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Άκυρο</button>
+                        <button type="submit" class="btn btn-primary">Αποθήκευση</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Staff Modal -->
+<div class="modal fade" id="staffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-corporate text-white">
+                <h5 class="modal-title">Προσθήκη Προσωπικού</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="handleAddStaff(event)">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Όνομα Χρήστη</label>
+                        <input type="text" name="username" required class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Κωδικός</label>
+                        <input type="password" name="password" required class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Ρόλος</label>
+                        <select name="role" class="form-select">
+                            <option value="staff">Staff</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Προσθήκη</button>
+                </form>
+            </div>
         </div>
     </div>
 </div>
 
 
 <!-- PRINT MODAL -->
-<div id="printModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center">
-    <div class="bg-white text-black p-8 rounded-lg w-[350px] text-center relative">
-        <button onclick="document.getElementById('printModal').classList.add('hidden')"
-            class="absolute top-2 right-2 text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
-        <div id="printArea" class="border-2 border-dashed border-gray-300 p-4 mb-4">
-            <h2 class="font-bold text-lg mb-2">SERVICE TICKET</h2>
-            <img id="qrImage" src="" alt="QR" class="w-32 h-32 mx-auto mb-2 mix-blend-multiply">
-            <p id="printId" class="font-mono font-bold text-xl mb-1">TS-202X-XXX</p>
-            <p id="printCustomer" class="text-sm font-semibold truncate">Customer Name</p>
-            <p id="printModel" class="text-sm">Model Info</p>
-            <p id="printDate" class="text-xs text-gray-500 mt-2">Date</p>
-            <p id="printStaff" class="text-xs text-black font-bold mt-1 border-t border-gray-300 pt-1">Υπεύθυνος
-                Παραλαβής: <span id="printStaffName">-</span></p>
+<div id="printModal"
+    class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex align-items-center justify-content-center"
+    style="z-index: 2000;">
+    <div class="bg-white text-dark p-4 rounded shadow-lg position-relative" style="width: 350px;">
+        <button onclick="document.getElementById('printModal').classList.add('d-none')"
+            class="btn-close position-absolute top-0 end-0 m-3"></button>
+        <div id="printArea" class="border border-2 border-secondary border-dashed p-3 mb-3 text-center">
+            <h5 class="fw-bold mb-2">SERVICE TICKET</h5>
+            <img id="qrImage" src="" alt="QR" class="mx-auto mb-2" style="width: 120px; mix-blend-mode: multiply;">
+            <p id="printId" class="font-monospace fw-bold fs-5 mb-1">ID</p>
+            <p id="printCustomer" class="small fw-semibold text-truncate">Name</p>
+            <p id="printModel" class="small">Model</p>
+            <p id="printDate" class="small text-muted mt-2">Date</p>
+            <p class="small fw-bold mt-1 border-top pt-1 text-uppercase">TECH: <span id="printStaffName">-</span></p>
         </div>
-        <button onclick="window.print()"
-            class="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700">PRINT NOW</button>
+        <button onclick="window.print()" class="btn btn-primary w-100">Εκτύπωση</button>
     </div>
 </div>
-
-<!-- STATUS MODAL -->
-<div id="statusModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
-    <div class="bg-slate-800 p-6 rounded-lg w-96 border border-slate-700 shadow-2xl">
-        <h3 class="text-xl font-bold text-white mb-4">Ενημέρωση Κατάστασης</h3>
-        <form onsubmit="handleUpdateStatus(event)">
-            <input type="hidden" id="statusDeviceId">
-            <div class="mb-4">
-                <label class="block text-slate-400 text-sm mb-2">Νέα Κατάσταση</label>
-                <select id="newStatus" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-                    <option value="Παραλήφθηκε">Παραλήφθηκε (Received)</option>
-                    <option value="Σε Έλεγχο">Σε Έλεγχο (Checking)</option>
-                    <option value="Αναμονή Ανταλλακτικού">Αναμονή Ανταλλακτικού (Waiting Parts)</option>
-                    <option value="Υπό Επισκευή">Υπό Επισκευή (In Repair)</option>
-                    <option value="Έτοιμο">Έτοιμο (Ready)</option>
-                    <option value="Παραδόθηκε">Παραδόθηκε (Delivered)</option>
-                </select>
-            </div>
-            <div class="mb-6">
-                <label class="block text-slate-400 text-sm mb-2">Σημείωση (Προαιρετικό)</label>
-                <textarea id="statusNote" rows="3"
-                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white"></textarea>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="document.getElementById('statusModal').classList.add('hidden')"
-                    class="px-4 py-2 text-slate-400 hover:text-white">Άκυρο</button>
-                <button type="submit"
-                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold">Αποθήκευση</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<!-- ADD STAFF MODAL -->
-<div id="staffModal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
-    <div class="bg-slate-800 p-6 rounded-lg w-96 border border-slate-700 shadow-2xl">
-        <h3 class="text-xl font-bold text-white mb-4">Προσθήκη Προσωπικού</h3>
-        <form onsubmit="handleAddStaff(event)">
-            <div class="mb-4">
-                <label class="block text-slate-400 text-sm mb-2">Username</label>
-                <input type="text" name="username" required
-                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-            </div>
-            <div class="mb-4">
-                <label class="block text-slate-400 text-sm mb-2">Password</label>
-                <input type="password" name="password" required
-                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-            </div>
-            <div class="mb-6">
-                <label class="block text-slate-400 text-sm mb-2">Role</label>
-                <select name="role" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-                    <option value="staff">Staff</option>
-                    <option value="admin">Admin</option>
-                </select>
-            </div>
-            <div class="flex justify-end space-x-3">
-                <button type="button" onclick="document.getElementById('staffModal').classList.add('hidden')"
-                    class="px-4 py-2 text-slate-400 hover:text-white">Άκυρο</button>
-                <button type="submit"
-                    class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded font-bold">Προσθήκη</button>
-            </div>
-        </form>
-    </div>
-</div>
-
 
 <style>
     @media print {
@@ -262,9 +286,8 @@
             top: 0;
             width: 100%;
             height: 100%;
-            padding: 0;
-            background: white;
             display: block !important;
+            background: white !important;
         }
 
         #printArea {
@@ -272,10 +295,25 @@
             left: 50%;
             top: 50%;
             transform: translate(-50%, -50%);
-            border: none;
+            border: none !important;
             width: 100%;
-            text-align: center;
         }
+    }
+
+    .cursor-pointer {
+        cursor: pointer;
+    }
+
+    .bg-soft-primary {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+
+    .transition-hover {
+        transition: transform 0.2s;
+    }
+
+    .transition-hover:hover {
+        transform: translateY(-3px);
     }
 </style>
 
@@ -283,80 +321,67 @@
 
 {% block scripts %}
 <script>
-    let currentView = 'active'; // active, archive, staff
-    let currentStatusFilter = 'all'; // all, repair, ready
-    let currentUserFilter = null; // null or userId
+    let currentView = 'active';
+    let currentStatusFilter = 'all';
+    let currentUserFilter = null;
     let cachedData = [];
+
+    // Bootstrap Modal instances
+    let addDeviceModalBs, statusModalBs, staffModalBs;
 
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
         switchView('active');
+
+        // Init Modals
+        if (document.getElementById('addDeviceModal')) addDeviceModalBs = new bootstrap.Modal(document.getElementById('addDeviceModal'));
+        if (document.getElementById('statusModal')) statusModalBs = new bootstrap.Modal(document.getElementById('statusModal'));
+        if (document.getElementById('staffModal')) staffModalBs = new bootstrap.Modal(document.getElementById('staffModal'));
     });
 
-    // --- FILTERS & INTERACTIVITY ---
-
+    // --- FILTERS ---
     function filterByStatus(status) {
         currentStatusFilter = status;
 
-        // Visuals
-        document.querySelectorAll('[id^="card-"]').forEach(el => el.classList.remove('ring-slate-500', 'ring-blue-500', 'ring-orange-500', 'ring-green-500'));
-
-        const cardMap = {
-            'all': 'ring-slate-500', // Total = Neutral
-            'pending': 'ring-orange-500', // Wait = Orange
-            'repair': 'ring-blue-500',    // Repair = Blue
-            'ready': 'ring-green-500',    // Ready = Green
-            'archive': 'ring-slate-500'   // Delivered = Gray
-        };
-
+        // Visuals: Remove active border
+        document.querySelectorAll('[id^="card-"]').forEach(el => el.classList.remove('border-primary', 'border-2'));
         if (document.getElementById(`card-${status}`)) {
-            document.getElementById(`card-${status}`).classList.add(cardMap[status]);
+            document.getElementById(`card-${status}`).classList.add('border-primary', 'border-2');
         }
 
-        if (status === 'archive') {
-            switchView('archive');
-        } else {
-            // Ensure we are on active view
-            if (currentView !== 'active') {
-                switchView('active');
-            } else {
-                loadDevices(); // Reload with status filter
-            }
+        if (status === 'archive') switchView('archive');
+        else {
+            if (currentView !== 'active') switchView('active');
+            else loadDevices();
         }
     }
 
     function filterByStaff(userId, username) {
         currentUserFilter = userId;
         document.getElementById('filterStaffName').innerText = username;
-        document.getElementById('staffFilterIndicator').classList.remove('hidden');
-
+        document.getElementById('staffFilterIndicator').classList.remove('d-none');
         loadStats();
-        // Return to active view to see their tasks
         switchView('active');
     }
 
     function clearStaffFilter() {
         currentUserFilter = null;
-        document.getElementById('staffFilterIndicator').classList.add('hidden');
+        document.getElementById('staffFilterIndicator').classList.add('d-none');
         loadStats();
         loadDevices();
     }
 
     // --- DATA LOADING ---
-
     async function loadStats() {
-        const totalEl = document.getElementById('stat-total');
-        if (!totalEl) return;
-
         try {
             let url = '/api/stats';
             if (currentUserFilter) url += `?user_id=${currentUserFilter}`;
-
             const res = await fetch(url);
             const data = await res.json();
             document.getElementById('stat-total').innerText = data.total;
-            document.getElementById('stat-pending').innerText = data.pending;
-            document.getElementById('stat-repair').innerText = data.in_repair;
+            document.getElementById('stat-received').innerText = data.received;
+            document.getElementById('stat-checking').innerText = data.checking;
+            document.getElementById('stat-repair').innerText = data.repair;
             document.getElementById('stat-ready').innerText = data.ready;
             document.getElementById('stat-completed').innerText = data.completed;
         } catch (e) { console.error(e); }
@@ -365,311 +390,88 @@
     async function switchView(view) {
         currentView = view;
 
-        // Update Tabs UI
-        ['active', 'archive', 'staff', 'settings'].forEach(v => {
-            const btn = document.getElementById('btn-' + v);
-            if (btn) {
-                if (v === view) {
-                    btn.classList.add('bg-blue-600', 'text-white');
-                    btn.classList.remove('bg-slate-800', 'text-slate-400');
-                } else {
-                    btn.classList.remove('bg-blue-600', 'text-white');
-                    btn.classList.add('bg-slate-800', 'text-slate-400');
-                }
-            }
-        });
+        // Navbar Active State
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        if (document.getElementById('nav-' + view)) document.getElementById('nav-' + view).classList.add('active');
 
-        const searchContainer = document.getElementById('globalSearchContainer');
-        const searchInput = document.getElementById('searchInput');
+        // Show/Hide Search
+        const searchRow = document.getElementById('controlsRow');
+        const statsRow = document.getElementById('statsRow');
 
-        // Hide Search for Staff/Settings
         if (view === 'staff' || view === 'settings') {
-            searchContainer.classList.add('hidden');
+            searchRow.classList.add('d-none');
+            if (view === 'settings') statsRow.classList.add('d-none');
         } else {
-            searchContainer.classList.remove('hidden');
-            searchInput.value = '';
+            searchRow.classList.remove('d-none');
+            statsRow.classList.remove('d-none');
+            document.getElementById('searchInput').value = '';
         }
 
-        if (view === 'staff') {
-            loadStaff();
-        } else if (view === 'settings') {
-            loadSettings();
-        } else { // active or archive
-            loadDevices();
-        }
-    }
-
-    async function loadSettings() {
-        const container = document.getElementById('mainContent');
-        container.innerHTML = '<div class="text-center text-slate-500 mt-10"><i class="fas fa-circle-notch fa-spin text-2xl"></i> Φόρτωση...</div>';
-
-        try {
-            const res = await fetch('/api/settings');
-            const data = await res.json();
-
-            if (data.error) {
-                container.innerHTML = '<div class="text-red-500 text-center">Unauthorized</div>';
-                return;
-            }
-
-            // Helpers to check boxes
-            const isRegSMS = data.channels_reg && data.channels_reg.includes('sms') ? 'checked' : '';
-            const isRegWA = data.channels_reg && data.channels_reg.includes('whatsapp') ? 'checked' : '';
-
-            const isRdySMS = data.channels_ready && data.channels_ready.includes('sms') ? 'checked' : '';
-            const isRdyWA = data.channels_ready && data.channels_ready.includes('whatsapp') ? 'checked' : '';
-
-            const isDelSMS = data.channels_delivered && data.channels_delivered.includes('sms') ? 'checked' : '';
-            const isDelWA = data.channels_delivered && data.channels_delivered.includes('whatsapp') ? 'checked' : '';
-
-            let html = `
-            <div class="max-w-4xl mx-auto">
-                <h2 class="text-2xl font-bold text-white mb-6">Ρυθμίσεις Infobip</h2>
-                <form onsubmit="saveSettings(event)" class="space-y-8">
-                    
-                    <!-- API CONFIG -->
-                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
-                        <h3 class="text-lg font-bold text-blue-400 mb-4">API Configuration</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs text-slate-400 mb-1">API Key</label>
-                                <input type="password" name="api_key" value="${data.api_key || ''}" 
-                                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-slate-400 mb-1">Base URL (e.g. k38s.api.infobip.com)</label>
-                                <input type="text" name="base_url" value="${data.base_url || ''}" 
-                                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-                            </div>
-                            <div>
-                                <label class="block text-xs text-slate-400 mb-1">Sender ID</label>
-                                <input type="text" name="sender_id" value="${data.sender_id || ''}" 
-                                    class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-white">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- TEMPLATES & TRIGGERS -->
-                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
-                        <h3 class="text-lg font-bold text-orange-400 mb-4">Ειδοποιήσεις & Κανάλια</h3>
-                        
-                        <!-- REGISTRATION -->
-                        <div class="mb-6 pb-6 border-b border-slate-700">
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-white font-bold">1. Νέα Εγγραφή (Registration)</label>
-                                <div class="space-x-4">
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_reg_sms" class="form-checkbox text-blue-600" ${isRegSMS}> SMS
-                                    </label>
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_reg_wa" class="form-checkbox text-green-600" ${isRegWA}> WhatsApp
-                                    </label>
-                                </div>
-                            </div>
-                            <textarea name="tpl_reg" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">${data.template_reg || ''}</textarea>
-                            <p class="text-xs text-slate-500 mt-1">Vars: {customer_name}, {model}, {tracking_id}</p>
-                        </div>
-
-                        <!-- READY -->
-                        <div class="mb-6 pb-6 border-b border-slate-700">
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-white font-bold">2. Έτοιμο (Ready)</label>
-                                <div class="space-x-4">
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_rdy_sms" class="form-checkbox text-blue-600" ${isRdySMS}> SMS
-                                    </label>
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_rdy_wa" class="form-checkbox text-green-600" ${isRdyWA}> WhatsApp
-                                    </label>
-                                </div>
-                            </div>
-                             <textarea name="tpl_rdy" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">${data.template_ready || ''}</textarea>
-                        </div>
-
-                        <!-- DELIVERED -->
-                        <div>
-                            <div class="flex justify-between items-center mb-2">
-                                <label class="text-white font-bold">3. Παραδόθηκε (Delivered)</label>
-                                <div class="space-x-4">
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_del_sms" class="form-checkbox text-blue-600" ${isDelSMS}> SMS
-                                    </label>
-                                    <label class="inline-flex items-center text-slate-300 text-sm">
-                                        <input type="checkbox" name="ch_del_wa" class="form-checkbox text-green-600" ${isDelWA}> WhatsApp
-                                    </label>
-                                </div>
-                            </div>
-                             <textarea name="tpl_del" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white">${data.template_del || ''}</textarea>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow-lg">
-                        Αποθήκευση Ρυθμίσεων
-                    </button>
-                </form>
-            </div>
-            `;
-
-            container.innerHTML = html;
-        } catch (e) { console.error(e); }
-    }
-
-    async function saveSettings(e) {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const data = {
-            api_key: fd.get('api_key'),
-            base_url: fd.get('base_url'),
-            sender_id: fd.get('sender_id'),
-            template_reg: fd.get('tpl_reg'),
-            template_ready: fd.get('tpl_rdy'),
-            template_del: fd.get('tpl_del'),
-            // Build channel strings
-            channels_reg: [fd.get('ch_reg_sms') ? 'sms' : '', fd.get('ch_reg_wa') ? 'whatsapp' : ''].filter(Boolean).join(','),
-            channels_ready: [fd.get('ch_rdy_sms') ? 'sms' : '', fd.get('ch_rdy_wa') ? 'whatsapp' : ''].filter(Boolean).join(','),
-            channels_del: [fd.get('ch_del_sms') ? 'sms' : '', fd.get('ch_del_wa') ? 'whatsapp' : ''].filter(Boolean).join(',')
-        };
-
-        const res = await fetch('/api/settings', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-
-        if (res.ok) {
-            Swal.fire('Success', 'Settings Saved', 'success');
-        } else {
-            Swal.fire('Error', 'Failed to save', 'error');
-        }
-    }
-
-    async function handleAddDevice(e) {
-        e.preventDefault();
-        const btn = e.target.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Saving...';
-        btn.disabled = true;
-
-        const fd = new FormData(e.target);
-
-        try {
-            const res = await fetch('/add_device', {
-                method: 'POST',
-                body: fd
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                Swal.fire({
-                    title: 'Επιτυχία!',
-                    text: 'Η συσκευή καταχωρήθηκε: ' + data.id,
-                    icon: 'success',
-                    showCancelButton: true,
-                    confirmButtonText: 'Εκτύπωση Label',
-                    cancelButtonText: 'Κλείσιμο'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        printLabel(data.id, fd.get('customer_name'), fd.get('model'), data.created_by);
-                    }
-                });
-
-                e.target.reset();
-                loadStats();
-                loadDevices();
-            } else {
-                Swal.fire('Error', data.error || 'Failed to add device', 'error');
-            }
-        } catch (err) {
-            console.error(err);
-            Swal.fire('Error', 'Network Error', 'error');
-        } finally {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
+        if (view === 'staff') loadStaff();
+        else if (view === 'settings') loadSettings();
+        else loadDevices();
     }
 
     async function loadDevices() {
         const container = document.getElementById('mainContent');
-        container.innerHTML = '<div class="text-center text-slate-500 mt-10"><i class="fas fa-circle-notch fa-spin text-2xl"></i> Φόρτωση...</div>';
+        container.innerHTML = '<div class="text-center text-muted mt-5"><div class="spinner-border text-primary" role="status"></div><div class="mt-2">Φόρτωση...</div></div>';
 
         try {
             let url = `/api/devices?`;
-
-            // Build Query Params
             const params = new URLSearchParams();
+            if (currentView === 'archive') params.append('status', 'archive');
+            else if (currentStatusFilter !== 'all' && currentStatusFilter !== 'archive') params.append('status', currentStatusFilter);
+            else params.append('status', 'active');
 
-            if (currentView === 'archive') {
-                params.append('status', 'archive');
-            } else if (currentStatusFilter !== 'all' && currentStatusFilter !== 'archive') {
-                params.append('status', currentStatusFilter);
-            } else {
-                params.append('status', 'active');
-            }
-
-            if (currentUserFilter) {
-                params.append('user_id', currentUserFilter);
-            }
+            if (currentUserFilter) params.append('user_id', currentUserFilter);
 
             const res = await fetch(url + params.toString());
             const data = await res.json();
             cachedData = data;
             renderDevices(data);
-        } catch (e) {
-            console.error(e);
-            container.innerHTML = '<div class="text-red-500 text-center">Failed to load data</div>';
-        }
+        } catch (e) { console.error(e); container.innerHTML = '<div class="alert alert-danger">Σφάλμα φόρτωσης</div>'; }
     }
 
     function renderDevices(devices) {
         const container = document.getElementById('mainContent');
         if (devices.length === 0) {
-            container.innerHTML = '<div class="text-center text-slate-500 mt-10">Δεν βρέθηκαν εγγραφές.</div>';
+            container.innerHTML = '<div class="alert alert-info text-center">Δεν βρέθηκαν εγγραφές.</div>';
             return;
         }
 
-        let html = '<div class="space-y-4">';
+        let html = '<div class="row g-3">';
         devices.forEach(d => {
-            let badgeColor = 'bg-blue-500/20 text-blue-400';
-            if (d.status === 'Έτοιμο') badgeColor = 'bg-green-500/20 text-green-400';
-            else if (d.status === 'Σε Εκκρεμότητα') badgeColor = 'bg-orange-500/20 text-orange-400'; // Orange
-            else if (d.status === 'Παραδόθηκε') badgeColor = 'bg-slate-500/20 text-slate-400';
-            else if (d.status === 'Υπό Επισκευή') badgeColor = 'bg-blue-500/20 text-blue-400'; // Blue
+            let badgeClass = 'bg-secondary';
+            let badgeStyle = '';
 
+            // Status Logic (Greek)
+            if (d.status === 'Παραλήφθηκε') badgeClass = 'bg-warning text-dark';
+            else if (d.status === 'Υπό Έλεγχο') badgeClass = 'bg-info text-dark';
+            else if (d.status === 'Υπό Επισκευή') { badgeClass = 'text-white'; badgeStyle = 'background-color: #fd7e14;'; }
+            else if (d.status === 'Έτοιμο') badgeClass = 'bg-success';
+            else if (d.status === 'Αρχείο') badgeClass = 'bg-secondary';
 
             html += `
-            <div class="bg-slate-800 rounded-lg p-4 border border-slate-700 hover:border-slate-600 transition-all shadow-md group">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <div class="flex items-center space-x-3 mb-1">
-                            <span class="font-mono text-xs text-slate-500 bg-slate-900 px-2 py-0.5 rounded">${d.tracking_id}</span>
-                            <h3 class="font-bold text-white text-lg">${d.model}</h3>
+            <div class="col-md-6 col-lg-4">
+                <div class="card bg-white text-dark border-0 shadow-sm h-100 hover-shadow transition">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                             <span class="badge bg-light text-secondary border font-monospace">${d.tracking_id}</span>
+                             <span class="badge ${badgeClass}" style="${badgeStyle}">${d.status}</span>
                         </div>
-                        <p class="text-slate-300 text-sm mb-2">
-                            <i class="fas fa-user text-slate-500 mr-2"></i>${d.customer_name}
-                            <span class="text-slate-500 mx-2">|</span>
-                            <i class="fas fa-phone text-slate-500 mr-2"></i>${d.phone}
-                        </p>
-                         <p class="text-slate-500 text-xs mb-2">
-                            <i class="fas fa-hard-hat mr-1"></i> Tech: <span class="text-slate-300">${d.technician}</span>
-                            <span class="mx-2">|</span>
-                             <i class="fas fa-edit mr-1"></i> Recv: <span class="text-slate-300">${d.created_by}</span>
-                        </p>
-                        <p class="text-slate-400 text-xs italic bg-slate-900/50 p-2 rounded border border-slate-700/50 inline-block">${d.description}</p>
-                    </div>
-                    <div class="text-right">
-                        <span class="inline-block px-3 py-1 rounded-full text-xs font-bold mb-3 ${badgeColor}">
-                            ${d.status}
-                        </span>
-                        <div class="text-xs text-slate-500 mb-2">${d.created_at}</div>
-                        <div class="flex space-x-2 justify-end">
-                           <button onclick="printLabel('${d.tracking_id}', '${d.customer_name}', '${d.model}', '${d.created_by}')" class="p-2 text-slate-400 hover:text-white transition-colors bg-slate-700 rounded hover:bg-slate-600" title="Εκτύπωση">
-                                <i class="fas fa-print"></i>
-                            </button>
-                            ${currentView === 'active' ? `
-                            <button onclick="openStatusModal('${d.id}', '${d.status}')" class="p-2 text-blue-400 hover:text-blue-300 transition-colors bg-blue-500/10 rounded hover:bg-blue-500/20 relative" title="Ενημέρωση">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            ` : ''}
+                        <h5 class="card-title fw-bold text-truncate">${d.model}</h5>
+                        <div class="card-text text-muted small mb-3">
+                             <div><i class="fas fa-user me-2"></i>${d.customer_name}</div>
+                             <div><i class="fas fa-phone me-2"></i>${d.customer_phone || d.phone}</div>
+                        </div>
+                        <p class="card-text small bg-light p-2 rounded text-secondary border">${d.description || 'Χωρίς περιγραφή'}</p>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                             <small class="text-muted text-xs">${d.created_at} <span class="ms-1">από ${d.created_by}</span></small>
+                             <div>
+                                <button class="btn btn-sm btn-outline-secondary me-1" onclick="printLabel('${d.tracking_id}', '${d.customer_name}', '${d.model}', '${d.created_by}')" title="Print"><i class="fas fa-print"></i></button>
+                                ${currentView === 'active' ? `<button class="btn btn-sm btn-outline-primary" onclick="openStatusModal('${d.id}', '${d.status}')" title="Edit"><i class="fas fa-edit"></i></button>` : ''}
+                             </div>
                         </div>
                     </div>
                 </div>
@@ -691,134 +493,112 @@
 
     async function loadStaff() {
         const container = document.getElementById('mainContent');
-        container.innerHTML = '<div class="text-center text-slate-500 mt-10"><i class="fas fa-circle-notch fa-spin text-2xl"></i> Φόρτωση...</div>';
+        container.innerHTML = '<div class="d-flex justify-content-between align-items-center mb-3"><h4 class="text-secondary">Προσωπικό</h4><button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#staffModal"><i class="fas fa-plus"></i> Νέο μέλος</button></div>';
 
         try {
             const res = await fetch('/api/staff');
             const data = await res.json();
 
-            let html = `
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-white">Διαχείριση Προσωπικού</h2>
-                <button onclick="document.getElementById('staffModal').classList.remove('hidden')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
-                    <i class="fas fa-plus mr-2"></i> Προσθήκη
-                </button>
-            </div>
-            <div class="bg-slate-800 rounded-lg overflow-hidden border border-slate-700">
-                <table class="w-full text-left text-sm text-slate-400">
-                    <thead class="bg-slate-900 text-slate-200 uppercase font-bold">
-                        <tr>
-                            <th class="px-6 py-3">Username</th>
-                            <th class="px-6 py-3">Role</th>
-                            <th class="px-6 py-3">Last Login</th>
-                            <th class="px-6 py-3 text-right">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-700">
-            `;
-
-            data.forEach(user => {
-                html += `
-                <tr class="hover:bg-slate-700/50 cursor-pointer" onclick="filterByStaff(${user.id}, '${user.username}')" title="Click to filter stats by this user">
-                    <td class="px-6 py-4 font-medium text-white flex items-center">
-                        ${user.username}
-                        ${user.username !== 'admin' ? '<i class="fas fa-filter text-slate-600 ml-2 text-xs opacity-0 group-hover:opacity-100"></i>' : ''}
+            let html = '<div class="table-responsive"><table class="table table-hover align-middle shadow-sm bg-white rounded"><thead><tr><th>User</th><th>Role</th><th>Last Login</th><th class="text-end">Action</th></tr></thead><tbody>';
+            data.forEach(u => {
+                html += `<tr class="cursor-pointer" onclick="filterByStaff(${u.id}, '${u.username}')">
+                    <td>${u.username} ${u.role !== 'admin' ? '<i class="fas fa-filter text-muted ms-2 small"></i>' : ''}</td>
+                    <td><span class="badge bg-secondary">${u.role}</span></td>
+                    <td>${u.last_login}</td>
+                    <td class="text-end" onclick="event.stopPropagation()">
+                        ${u.username !== 'admin' ? `<button onclick="deleteStaff(${u.id})" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>` : '-'}
                     </td>
-                    <td class="px-6 py-4"><span class="px-2 py-1 rounded bg-slate-900 border border-slate-600 text-xs">${user.role}</span></td>
-                    <td class="px-6 py-4">${user.last_login}</td>
-                    <td class="px-6 py-4 text-right" onclick="event.stopPropagation()">
-                        ${user.username !== 'admin' ? `
-                        <button onclick="deleteStaff(${user.id})" class="text-red-400 hover:text-red-300">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        ` : '<span class="text-slate-600">-</span>'}
-                    </td>
-                </tr>
-                `;
+                </tr>`;
             });
-
             html += '</tbody></table></div>';
-            container.innerHTML = html;
-
-        } catch (e) {
-            container.innerHTML = '<div class="text-red-500 text-center">Unauthorized or Error</div>';
-        }
+            container.insertAdjacentHTML('beforeend', html);
+        } catch (e) { container.innerHTML += '<div class="alert alert-danger">Σφάλμα φόρτωσης προσωπικού</div>'; }
     }
 
+    async function loadSettings() {
+        const container = document.getElementById('mainContent');
+        container.innerHTML = '<div class="text-center"><div class="spinner-border"></div></div>';
+        try {
+            const res = await fetch('/api/settings');
+            const data = await res.json();
+            if (data.error) { container.innerHTML = '<div class="alert alert-danger">Μη εξουσιοδοτημένη πρόσβαση</div>'; return; }
+
+            const checks = (list, val) => (list && list.includes(val) ? 'checked' : '');
+
+            let html = `
+            <div class="card border-0 shadow-sm mx-auto" style="max-width: 800px;">
+                <div class="card-header bg-white border-bottom"><h5 class="mb-0 text-primary">Ρυθμίσεις (Infobip)</h5></div>
+                <div class="card-body">
+                    <form onsubmit="saveSettings(event)">
+                         <div class="mb-3">
+                             <label class="form-label text-info fw-bold">API Config</label>
+                             <div class="row g-2">
+                                 <div class="col-md-4"><input type="password" name="api_key" placeholder="API Key" value="${data.api_key || ''}" class="form-control"></div>
+                                 <div class="col-md-4"><input type="text" name="base_url" placeholder="Base URL" value="${data.base_url || ''}" class="form-control"></div>
+                                 <div class="col-md-4"><input type="text" name="sender_id" placeholder="Sender ID" value="${data.sender_id || ''}" class="form-control"></div>
+                             </div>
+                         </div>
+                         <hr class="text-muted">
+                         <div class="mb-3">
+                             <label class="form-label text-warning fw-bold">Templates</label>
+                             <div class="mb-2">
+                                 <label class="small text-muted">Registration</label>
+                                 <div class="input-group">
+                                    <span class="input-group-text"><input type="checkbox" name="ch_reg_sms" ${checks(data.channels_reg, 'sms')}> SMS</span>
+                                    <textarea name="tpl_reg" class="form-control" rows="1">${data.template_reg || ''}</textarea>
+                                 </div>
+                             </div>
+                             <div class="mb-2">
+                                 <label class="small text-muted">Ready</label>
+                                 <div class="input-group">
+                                    <span class="input-group-text"><input type="checkbox" name="ch_rdy_sms" ${checks(data.channels_ready, 'sms')}> SMS</span>
+                                    <textarea name="tpl_rdy" class="form-control" rows="1">${data.template_ready || ''}</textarea>
+                                 </div>
+                             </div>
+                             <div class="mb-2">
+                                 <label class="small text-muted">Delivered</label>
+                                 <div class="input-group">
+                                    <span class="input-group-text"><input type="checkbox" name="ch_del_sms" ${checks(data.channels_delivered, 'sms')}> SMS</span>
+                                    <textarea name="tpl_del" class="form-control" rows="1">${data.template_del || ''}</textarea>
+                                 </div>
+                             </div>
+                         </div>
+                         <button type="submit" class="btn btn-primary w-100">Αποθήκευση</button>
+                    </form>
+                </div>
+            </div>`;
+            container.innerHTML = html;
+        } catch (e) { console.error(e); }
+    }
+
+    // --- ACTIONS ---
     async function handleAddDevice(e) {
         e.preventDefault();
-        const fd = new FormData(e.target);
+        const form = e.target;
+        const btn = form.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Αποθήκευση...';
+        btn.disabled = true;
 
         try {
+            const fd = new FormData(form);
             const res = await fetch('/add_device', { method: 'POST', body: fd });
             const data = await res.json();
 
             if (data.success) {
-                printLabel(data.id, fd.get('customer_name'), fd.get('model'), data.created_by);
                 Swal.fire({
-                    icon: 'success',
-                    title: 'Επιτυχία',
-                    text: 'Kayıt Başarılı',
-                    timer: 1500,
-                    showConfirmButton: false
-                }).then(() => {
-                    e.target.reset();
-                    loadStats();
-                    if (currentView === 'active') loadDevices('active');
+                    title: 'Επιτυχία', text: 'Νέα συσκευή: ' + data.id, icon: 'success',
+                    showCancelButton: true, confirmButtonText: 'Εκτύπωση', cancelButtonText: 'Κλείσιμο'
+                }).then((r) => {
+                    if (r.isConfirmed) printLabel(data.id, fd.get('customer_name'), fd.get('model'), data.created_by);
                 });
-            }
-        } catch (err) { console.error(err); }
-    }
-
-    async function handleAddStaff(e) {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const res = await fetch('/api/staff', { method: 'POST', body: fd });
-        if (res.ok) {
-            document.getElementById('staffModal').classList.add('hidden');
-            e.target.reset();
-            loadStaff();
-            Swal.fire('Success', 'Staff added', 'success');
-        } else {
-            Swal.fire('Error', 'Failed to add staff', 'error');
-        }
-    }
-
-    async function deleteStaff(id) {
-        const result = await Swal.fire({
-            title: 'Are you sure?',
-            text: "This user will be deleted!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, delete it!'
-        });
-
-        if (result.isConfirmed) {
-            await fetch(`/api/staff/${id}`, { method: 'DELETE' });
-            loadStaff();
-            Swal.fire('Deleted!', 'User has been deleted.', 'success');
-        }
-    }
-
-    // Reuse existing functions
-    function printLabel(id, name, model, creator) {
-        try {
-            document.getElementById('qrImage').src = `/generate_qr/${id}`;
-            document.getElementById('printId').textContent = id;
-            document.getElementById('printCustomer').textContent = name;
-            document.getElementById('printModel').textContent = model;
-            document.getElementById('printDate').textContent = new Date().toLocaleDateString('el-GR');
-            document.getElementById('printStaffName').textContent = creator || '-';
-            document.getElementById('printModal').classList.remove('hidden');
-        } catch (e) { console.error(e); }
-    }
-
-    function openStatusModal(id, currentStatus) {
-        document.getElementById('statusDeviceId').value = id;
-        document.getElementById('newStatus').value = currentStatus;
-        document.getElementById('statusModal').classList.remove('hidden');
+                form.reset();
+                if (addDeviceModalBs) addDeviceModalBs.hide();
+                loadStats();
+                if (currentView === 'active') loadDevices();
+            } else { Swal.fire('Σφάλμα', data.error || 'Απέτυχε', 'error'); }
+        } catch (err) { Swal.fire('Σφάλμα', 'Δικτυακό Σφάλμα', 'error'); }
+        finally { btn.innerHTML = originalText; btn.disabled = false; }
     }
 
     async function handleUpdateStatus(e) {
@@ -828,13 +608,64 @@
         const note = document.getElementById('statusNote').value;
 
         const fd = new FormData();
-        fd.append('status', status);
-        fd.append('note', note);
-
+        fd.append('status', status); fd.append('note', note);
         await fetch(`/update_status/${id}`, { method: 'POST', body: fd });
-        document.getElementById('statusModal').classList.add('hidden');
+
+        if (statusModalBs) statusModalBs.hide();
         loadStats();
         loadDevices();
+    }
+
+    async function handleAddStaff(e) {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const res = await fetch('/api/staff', { method: 'POST', body: fd });
+        if (res.ok) {
+            if (staffModalBs) staffModalBs.hide(); e.target.reset(); loadStaff();
+            Swal.fire('Επιτυχία', 'Προστέθηκε νέο μέλος', 'success');
+        } else Swal.fire('Σφάλμα', 'Απέτυχε', 'error');
+    }
+
+    async function deleteStaff(id) {
+        const r = await Swal.fire({ title: 'Είστε σίγουρος;', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ναι, διαγραφή!', cancelButtonText: 'Όχι' });
+        if (r.isConfirmed) {
+            await fetch(`/api/staff/${id}`, { method: 'DELETE' });
+            loadStaff();
+            Swal.fire('Διαγράφηκε', '', 'success');
+        }
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = {
+            api_key: fd.get('api_key'), base_url: fd.get('base_url'), sender_id: fd.get('sender_id'),
+            template_reg: fd.get('tpl_reg'), template_ready: fd.get('tpl_rdy'), template_del: fd.get('tpl_del'),
+            channels_reg: fd.get('ch_reg_sms') ? 'sms' : '',
+            channels_ready: fd.get('ch_rdy_sms') ? 'sms' : '',
+            channels_del: fd.get('ch_del_sms') ? 'sms' : ''
+        };
+        const res = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+        if (res.ok) Swal.fire('Αποθηκεύτηκε', '', 'success');
+        else Swal.fire('Σφάλμα', '', 'error');
+    }
+
+    function openStatusModal(id, status) {
+        document.getElementById('statusDeviceId').value = id;
+        document.getElementById('newStatus').value = status;
+        if (statusModalBs) statusModalBs.show();
+    }
+
+    function printLabel(id, name, model, creator) {
+        try {
+            document.getElementById('qrImage').src = `/generate_qr/${id}`;
+            document.getElementById('printId').textContent = id;
+            document.getElementById('printCustomer').textContent = name;
+            document.getElementById('printModel').textContent = model;
+            document.getElementById('printDate').textContent = new Date().toLocaleDateString('el-GR');
+            document.getElementById('printStaffName').textContent = creator || '-';
+            document.getElementById('printModal').classList.remove('d-none');
+        } catch (e) { console.error(e); }
     }
 </script>
 {% endblock %}
