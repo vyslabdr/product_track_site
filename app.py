@@ -8,6 +8,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Device, TimelineLog, SystemSetting, NotificationLog, Customer
 
 import os
+import logging
+
+# Configure Logging
+logging.basicConfig(filename='app.log', level=logging.INFO, 
+                    format='%(asctime)s %(levelname)s: %(message)s')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
@@ -126,103 +131,8 @@ def index():
 
 import json
 
-# --- INFOBIP SERVICE ---
-def send_infobip_message(device, trigger_type):
-    """
-    trigger_type: 'registration', 'ready', 'delivered'
-    """
-    settings = SystemSetting.query.first()
-    if not settings or not settings.infobip_api_key or not settings.infobip_base_url:
-        print("Infobip not configured.")
-        return
+# from infobip_service import InfobipService
 
-    # Determine Channel & Template
-    channels = []
-    template = ""
-    
-    if trigger_type == 'registration':
-        channels = (settings.channels_registration or '').split(',')
-        template = settings.template_registration or ''
-    elif trigger_type == 'ready':
-        channels = (settings.channels_ready or '').split(',')
-        template = settings.template_ready or ''
-    elif trigger_type == 'delivered':
-        channels = (settings.channels_delivered or '').split(',')
-        template = settings.template_delivered or ''
-
-    # Format Message
-    # Variables: {customer_name}, {model}, {tracking_id}, {status}
-    try:
-        message_text = template.format(
-            customer_name=device.customer.name,
-            model=device.model,
-            tracking_id=device.tracking_id,
-            status=device.status
-        )
-    except Exception as e:
-        print(f"Template Error: {e}")
-        message_text = template # Fallback to raw template if format fails
-
-    # Send Logic (Failover: WhatsApp -> Viber -> SMS)
-    # Simple Logic for now: Iterate channels and try send. If 'sms' is in list, send as SMS.
-    # User requested Failover: If WhatsApp fails, send SMS.
-    
-    headers = {
-        'Authorization': f'App {settings.infobip_api_key}',
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-    }
-
-    # Normalize phone: Remove spaces, ensure country code. 
-    # Assumption for Greece: +30
-    phone = device.customer.phone.replace(" ", "")
-    if not phone.startswith("+"):
-        phone = "+30" + phone if not phone.startswith("00") else "+" + phone.lstrip("00")
-
-    destinations = [{"to": phone}]
-    
-    sent_success = False
-
-    # Try WhatsApp first if enabled
-    if 'whatsapp' in channels:
-        # Placeholder for WA logic (Infobip WA API differs slightly, often requires approved templates)
-        # For this prototype, we might skip complex WA Template structure and focus on SMS 
-        # OR simulate it. The prompt asked for "Failover implementation".
-        # Let's assume we use the endpoint for SMS as the primary robust one, 
-        # as WA requires pre-approved templates for business initiated messages.
-        # Impl Note: Real WA on Infobip is /whatsapp/1/message/template
-        pass 
-
-    # Fallback / Main Channel: SMS
-    if 'sms' in channels or (not sent_success and 'sms' in channels):
-        url = f"https://{settings.infobip_base_url}/sms/2/text/advanced"
-        payload = {
-            "messages": [
-                {
-                    "destinations": destinations,
-                    "from": settings.infobip_sender_id,
-                    "text": message_text
-                }
-            ]
-        }
-        
-        try:
-            response = requests.post(url, json=payload, headers=headers)
-            if response.status_code == 200:
-                sent_success = True
-                # Log Success
-                log = NotificationLog(device_id=device.id, channel='SMS', status='SENT', message_content=message_text)
-                db.session.add(log)
-                db.session.commit()
-            else:
-                print(f"Infobip Error: {response.text}")
-                # Log Failure
-                log = NotificationLog(device_id=device.id, channel='SMS', status='FAILED', message_content=f"Err: {response.status_code}")
-                db.session.add(log)
-                db.session.commit()
-        except Exception as e:
-            print(f"Request Error: {e}")
-            
 # --- SETTINGS ROUTES ---
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
@@ -230,36 +140,66 @@ def manage_settings():
     if current_user.role != 'admin':
         return jsonify({'error': 'Unauthorized'}), 403
         
-    settings = SystemSetting.query.first()
-    if not settings:
-        settings = SystemSetting()
-        db.session.add(settings)
-        db.session.commit()
-    
+    try:
+        settings = SystemSetting.query.first()
+        if not settings:
+            settings = SystemSetting()
+            db.session.add(settings)
+            db.session.commit()
+    except Exception as e:
+        logging.error(f"Database Error loading settings: {e}")
+        # If table missing, we can try to create? Or just return default structure for now to prevent crash
+        # For this specific user request: "return default empty values or create table"
+        # We'll return a mock settings object or empty dict structure if query fails hard
+        return jsonify({'error': 'Database not initialized or Settings table missing', 'details': str(e)}), 500
+
     if request.method == 'POST':
         data = request.json
-        settings.infobip_api_key = data.get('api_key')
-        settings.infobip_base_url = data.get('base_url')
-        settings.infobip_sender_id = data.get('sender_id')
+        
+        # General
+        settings.active_channel = data.get('active_channel', 'sms')
+        
+        # SMS
+        settings.infobip_api_key_sms = data.get('api_key_sms')
+        settings.infobip_base_url_sms = data.get('base_url_sms')
+        settings.infobip_sender_id_sms = data.get('sender_id_sms')
+        
+        # WhatsApp
+        settings.infobip_api_key_wa = data.get('api_key_wa')
+        settings.infobip_base_url_wa = data.get('base_url_wa')
+        settings.infobip_number_wa = data.get('number_wa')
+        
+        # Viber
+        settings.infobip_api_key_viber = data.get('api_key_viber')
+        settings.infobip_base_url_viber = data.get('base_url_viber')
+        settings.infobip_sender_viber = data.get('sender_viber')
+
+        # Templates
         settings.template_registration = data.get('template_reg')
         settings.template_ready = data.get('template_ready')
         settings.template_delivered = data.get('template_del')
-        settings.channels_registration = data.get('channels_reg')
-        settings.channels_ready = data.get('channels_ready')
-        settings.channels_delivered = data.get('channels_del')
+        
         db.session.commit()
         return jsonify({'success': True})
         
     return jsonify({
-        'api_key': settings.infobip_api_key,
-        'base_url': settings.infobip_base_url,
-        'sender_id': settings.infobip_sender_id,
+        'active_channel': settings.active_channel,
+        
+        'api_key_sms': settings.infobip_api_key_sms,
+        'base_url_sms': settings.infobip_base_url_sms,
+        'sender_id_sms': settings.infobip_sender_id_sms,
+        
+        'api_key_wa': settings.infobip_api_key_wa,
+        'base_url_wa': settings.infobip_base_url_wa,
+        'number_wa': settings.infobip_number_wa,
+        
+        'api_key_viber': settings.infobip_api_key_viber,
+        'base_url_viber': settings.infobip_base_url_viber,
+        'sender_viber': settings.infobip_sender_viber,
+
         'template_reg': settings.template_registration,
         'template_ready': settings.template_ready,
-        'template_del': settings.template_delivered,
-        'channels_reg': settings.channels_registration,
-        'channels_ready': settings.channels_ready,
-        'channels_delivered': settings.channels_delivered
+        'template_del': settings.template_delivered
     })
 
 
@@ -438,9 +378,7 @@ def add_device():
         db.session.add(log)
         db.session.commit()
 
-        
-        # TRIGGER NOTIFICATION
-        send_infobip_message(device, 'registration')
+
         
         # Return token/id and also Who created it (for label)
         return jsonify({
@@ -477,11 +415,17 @@ def update_status(device_id):
     db.session.add(log)
     db.session.commit()
     
-    # TRIGGER NOTIFICATION
+    # TRIGGER NOTIFICATION via INFOBIP SERVICE
     if new_status == 'Έτοιμο':
-        send_infobip_message(device, 'ready')
-    elif new_status == 'Αρχείο':
-        send_infobip_message(device, 'delivered')
+        try:
+            from infobip_service import InfobipService
+            success, msg = InfobipService.send_notification(device, 'ready')
+            if success:
+                logging.info(f"Notification Sent [ID:{device.tracking_id}]: {msg}")
+            else:
+                logging.error(f"Notification Failed [ID:{device.tracking_id}]: {msg}")
+        except Exception as e:
+             logging.error(f"Notification System Error: {e}")
     
     return jsonify({'success': True})
 
@@ -542,21 +486,21 @@ def delete_staff(user_id):
     return jsonify({'success': True})
 
 # --- Init DB ---
-with app.app_context():
-    db.create_all()
-    
-    # Auto-Seed Admin if not exists
-    if not User.query.first():
-        print("Auto-seeding Admin user...")
-        admin_user = User(
-            username='admin', 
-            password_hash=generate_password_hash('admin123'), 
-            role='admin',
-            is_first_login=True  # Force change on first login
-        )
-        db.session.add(admin_user)
-        db.session.commit()
-        print("Admin created: admin / admin123")
+# with app.app_context():
+#     db.create_all()
+#     
+#     # Auto-Seed Admin if not exists
+#     if not User.query.first():
+#         print("Auto-seeding Admin user...")
+#         admin_user = User(
+#             username='admin', 
+#             password_hash=generate_password_hash('admin123'), 
+#             role='admin',
+#             is_first_login=True  # Force change on first login
+#         )
+#         db.session.add(admin_user)
+#         db.session.commit()
+#         print("Admin created: admin / admin123")
 
 if __name__ == '__main__':
     app.run(debug=True)

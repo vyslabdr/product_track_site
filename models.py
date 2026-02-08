@@ -57,21 +57,29 @@ class TimelineLog(db.Model):
 
 class SystemSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # Infobip Credentials
-    infobip_api_key = db.Column(db.String(200), nullable=True)
-    infobip_base_url = db.Column(db.String(200), nullable=True)
-    infobip_sender_id = db.Column(db.String(50), default='InfoSMS')
-    
-    # Checkbox Config (JSON or simple CSV string)
-    # e.g. "sms,whatsapp" or just "sms"
-    channels_registration = db.Column(db.String(50), default='sms') 
-    channels_ready = db.Column(db.String(50), default='sms')
-    channels_delivered = db.Column(db.String(50), default='sms')
+    # Active Channel Selection
+    active_channel = db.Column(db.String(20), default='sms') # sms, whatsapp, viber
+
+    # SMS Configuration
+    infobip_api_key_sms = db.Column(db.String(200), nullable=True)
+    infobip_base_url_sms = db.Column(db.String(200), nullable=True)
+    infobip_sender_id_sms = db.Column(db.String(50), default='InfoSMS')
+
+    # WhatsApp Configuration
+    infobip_api_key_wa = db.Column(db.String(200), nullable=True)
+    infobip_base_url_wa = db.Column(db.String(200), nullable=True)
+    infobip_number_wa = db.Column(db.String(50), nullable=True)
+
+    # Viber Configuration
+    infobip_api_key_viber = db.Column(db.String(200), nullable=True)
+    infobip_base_url_viber = db.Column(db.String(200), nullable=True)
+    infobip_sender_viber = db.Column(db.String(50), nullable=True)
     
     # Message Templates (Greek)
-    template_registration = db.Column(db.Text, default='Η συσκευή {model} παρελήφθη. Κωδικός: {tracking_id}')
-    template_ready = db.Column(db.Text, default='Η συσκευή {model} είναι έτοιμη για παραλαβή.')
-    template_delivered = db.Column(db.Text, default='Ευχαριστούμε που μας προτιμήσατε. Η συσκευή {model} παραδόθηκε.')
+    # Message Templates (Greek)
+    template_registration = db.Column(db.Text, default='Η συσκευή {model} με κωδικό {tracking_id} παρελήφθη. Ευχαριστούμε!')
+    template_ready = db.Column(db.Text, default='Η συσκευή σας {model} ({tracking_id}) είναι έτοιμη για παραλαβή!')
+    template_delivered = db.Column(db.Text, default='H συσκευή {model} παραδόθηκε. Ευχαριστούμε που μας προτιμήσατε!')
 
 class NotificationLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)

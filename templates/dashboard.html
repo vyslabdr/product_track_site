@@ -523,131 +523,146 @@
             const data = await res.json();
             if (data.error) { container.innerHTML = '<div class="alert alert-danger">Μη εξουσιοδοτημένη πρόσβαση</div>'; return; }
 
-            const checks = (list, val) => (list && list.includes(val) ? 'checked' : '');
+            const isActive = (val) => (data.active_channel === val ? 'checked' : '');
 
             let html = `
             <div class="card border-0 shadow-sm mx-auto" style="max-width: 800px;">
-                <div class="card-header bg-white border-bottom"><h5 class="mb-0 text-primary">Ρυθμίσεις (Infobip)</h5></div>
+                <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-primary">Ρυθμίσεις Infobip</h5>
+                    <span class="badge bg-light text-dark border">
+                        <i class="fas fa-satellite-dish me-1"></i> Ενεργό: <strong class="text-uppercase text-primary">${data.active_channel}</strong>
+                    </span>
+                </div>
                 <div class="card-body">
                     <form onsubmit="saveSettings(event)">
-                         <div class="mb-3">
-                             <label class="form-label text-info fw-bold">API Config</label>
-                             <div class="row g-2">
-                                 <div class="col-md-4"><input type="password" name="api_key" placeholder="API Key" value="${data.api_key || ''}" class="form-control"></div>
-                                 <div class="col-md-4"><input type="text" name="base_url" placeholder="Base URL" value="${data.base_url || ''}" class="form-control"></div>
-                                 <div class="col-md-4"><input type="text" name="sender_id" placeholder="Sender ID" value="${data.sender_id || ''}" class="form-control"></div>
-                             </div>
+                         <!-- Enable Channel Switch -->
+                         <div class="mb-4 p-3 bg-light rounded border">
+                            <label class="form-label fw-bold d-block mb-3">Επιλογή Ενεργού Καναλιού Ενημέρωσης («Έτοιμο»)</label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="active_channel" id="ac_sms" value="sms" ${isActive('sms')}>
+                                <label class="btn btn-outline-primary" for="ac_sms"><i class="fas fa-sms me-2"></i>SMS</label>
+
+                                <input type="radio" class="btn-check" name="active_channel" id="ac_wa" value="whatsapp" ${isActive('whatsapp')}>
+                                <label class="btn btn-outline-success" for="ac_wa"><i class="fab fa-whatsapp me-2"></i>WhatsApp</label>
+
+                                <input type="radio" class="btn-check" name="active_channel" id="ac_vb" value="viber" ${isActive('viber')}>
+                                <label class="btn btn-outline-secondary" for="ac_vb" style="border-color: #665CAC; color: #665CAC;"><i class="fab fa-viber me-2"></i>Viber</label>
+                            </div>
                          </div>
+
+                         <!-- Tabs Navigation -->
+                         <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="sms-tab" data-bs-toggle="tab" data-bs-target="#sms-pane" type="button" role="tab"><i class="fas fa-sms me-2"></i>SMS</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link text-success" id="whatsapp-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-pane" type="button" role="tab"><i class="fab fa-whatsapp me-2"></i>WhatsApp</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="viber-tab" data-bs-toggle="tab" data-bs-target="#viber-pane" type="button" role="tab" style="color: #665CAC;"><i class="fab fa-viber me-2"></i>Viber</button>
+                            </li>
+                         </ul>
+
+                         <!-- Tabs Content -->
+                         <div class="tab-content mb-4" id="settingsTabsContent">
+                            <!-- SMS TAB -->
+                            <div class="tab-pane fade show active" id="sms-pane" role="tabpanel">
+                                 <div class="row g-2 mb-3">
+                                     <div class="col-md-12"><label class="small text-muted">API Key</label><div class="input-group"><input type="password" name="api_key_sms" value="${data.api_key_sms || ''}" class="form-control" autocomplete="off"><button type="button" class="btn btn-outline-secondary" onclick="togglePassword(this)"><i class="fas fa-eye"></i></button></div></div>
+                                     <div class="col-md-6"><label class="small text-muted">Base URL</label><input type="text" name="base_url_sms" value="${data.base_url_sms || ''}" class="form-control"></div>
+                                     <div class="col-md-6"><label class="small text-muted">Sender ID (Όνομα Αποστολέα)</label><input type="text" name="sender_id_sms" value="${data.sender_id_sms || ''}" class="form-control"></div>
+                                 </div>
+                            </div>
+
+                            <!-- WhatsApp TAB -->
+                            <div class="tab-pane fade" id="whatsapp-pane" role="tabpanel">
+                                 <div class="alert alert-soft-success small mb-3"><i class="fas fa-info-circle me-1"></i> Ο αριθμός WhatsApp πρέπει να είναι εγκεκριμένος στο Infobip.</div>
+                                 <div class="row g-2 mb-3">
+                                     <div class="col-md-12"><label class="small text-muted">API Key</label><div class="input-group"><input type="password" name="api_key_wa" value="${data.api_key_wa || ''}" class="form-control" autocomplete="off"><button type="button" class="btn btn-outline-secondary" onclick="togglePassword(this)"><i class="fas fa-eye"></i></button></div></div>
+                                     <div class="col-md-6"><label class="small text-muted">Base URL</label><input type="text" name="base_url_wa" value="${data.base_url_wa || ''}" class="form-control"></div>
+                                     <div class="col-md-6"><label class="small text-muted">Sender Number (Αριθμός)</label><input type="text" name="number_wa" value="${data.number_wa || ''}" class="form-control"></div>
+                                 </div>
+                            </div>
+
+                            <!-- Viber TAB -->
+                            <div class="tab-pane fade" id="viber-pane" role="tabpanel">
+                                 <div class="row g-2 mb-3">
+                                     <div class="col-md-12"><label class="small text-muted">API Key</label><div class="input-group"><input type="password" name="api_key_viber" value="${data.api_key_viber || ''}" class="form-control" autocomplete="off"><button type="button" class="btn btn-outline-secondary" onclick="togglePassword(this)"><i class="fas fa-eye"></i></button></div></div>
+                                     <div class="col-md-6"><label class="small text-muted">Base URL</label><input type="text" name="base_url_viber" value="${data.base_url_viber || ''}" class="form-control"></div>
+                                     <div class="col-md-6"><label class="small text-muted">Sender Name (Όνομα)</label><input type="text" name="sender_viber" value="${data.sender_viber || ''}" class="form-control"></div>
+                                 </div>
+                            </div>
+                         </div>
+
                          <hr class="text-muted">
                          <div class="mb-3">
-                             <label class="form-label text-warning fw-bold">Templates</label>
+                             <label class="form-label text-secondary fw-bold">Πρότυπα Μηνυμάτων (Templates)</label>
                              <div class="mb-2">
-                                 <label class="small text-muted">Registration</label>
-                                 <div class="input-group">
-                                    <span class="input-group-text"><input type="checkbox" name="ch_reg_sms" ${checks(data.channels_reg, 'sms')}> SMS</span>
-                                    <textarea name="tpl_reg" class="form-control" rows="1">${data.template_reg || ''}</textarea>
-                                 </div>
+                                 <label class="small text-muted">Εγγραφή (Registration)</label>
+                                 <textarea name="tpl_reg" class="form-control" rows="1">${data.template_reg || ''}</textarea>
                              </div>
                              <div class="mb-2">
-                                 <label class="small text-muted">Ready</label>
-                                 <div class="input-group">
-                                    <span class="input-group-text"><input type="checkbox" name="ch_rdy_sms" ${checks(data.channels_ready, 'sms')}> SMS</span>
-                                    <textarea name="tpl_rdy" class="form-control" rows="1">${data.template_ready || ''}</textarea>
-                                 </div>
+                                 <label class="small text-muted text-success fw-bold">Έτοιμο (Ready) - Αυτόματη Αποστολή</label>
+                                 <textarea name="tpl_rdy" class="form-control" rows="1">${data.template_ready || ''}</textarea>
                              </div>
                              <div class="mb-2">
-                                 <label class="small text-muted">Delivered</label>
-                                 <div class="input-group">
-                                    <span class="input-group-text"><input type="checkbox" name="ch_del_sms" ${checks(data.channels_delivered, 'sms')}> SMS</span>
-                                    <textarea name="tpl_del" class="form-control" rows="1">${data.template_del || ''}</textarea>
-                                 </div>
+                                 <label class="small text-muted">Παράδοση (Delivered)</label>
+                                 <textarea name="tpl_del" class="form-control" rows="1">${data.template_del || ''}</textarea>
                              </div>
                          </div>
-                         <button type="submit" class="btn btn-primary w-100">Αποθήκευση</button>
+                         <button type="submit" id="btnSaveSettings" class="btn btn-primary w-100">Αποθήκευση</button>
                     </form>
                 </div>
             </div>`;
             container.innerHTML = html;
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error(e); container.innerHTML = '<div class="alert alert-danger">Σφάλμα φόρτωσης.</div>'; }
     }
 
-    // --- ACTIONS ---
-    async function handleAddDevice(e) {
-        e.preventDefault();
-        const form = e.target;
-        const btn = form.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Αποθήκευση...';
-        btn.disabled = true;
-
-        try {
-            const fd = new FormData(form);
-            const res = await fetch('/add_device', { method: 'POST', body: fd });
-            const data = await res.json();
-
-            if (data.success) {
-                Swal.fire({
-                    title: 'Επιτυχία', text: 'Νέα συσκευή: ' + data.id, icon: 'success',
-                    showCancelButton: true, confirmButtonText: 'Εκτύπωση', cancelButtonText: 'Κλείσιμο'
-                }).then((r) => {
-                    if (r.isConfirmed) printLabel(data.id, fd.get('customer_name'), fd.get('model'), data.created_by);
-                });
-                form.reset();
-                if (addDeviceModalBs) addDeviceModalBs.hide();
-                loadStats();
-                if (currentView === 'active') loadDevices();
-            } else { Swal.fire('Σφάλμα', data.error || 'Απέτυχε', 'error'); }
-        } catch (err) { Swal.fire('Σφάλμα', 'Δικτυακό Σφάλμα', 'error'); }
-        finally { btn.innerHTML = originalText; btn.disabled = false; }
-    }
-
-    async function handleUpdateStatus(e) {
-        e.preventDefault();
-        const id = document.getElementById('statusDeviceId').value;
-        const status = document.getElementById('newStatus').value;
-        const note = document.getElementById('statusNote').value;
-
-        const fd = new FormData();
-        fd.append('status', status); fd.append('note', note);
-        await fetch(`/update_status/${id}`, { method: 'POST', body: fd });
-
-        if (statusModalBs) statusModalBs.hide();
-        loadStats();
-        loadDevices();
-    }
-
-    async function handleAddStaff(e) {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        const res = await fetch('/api/staff', { method: 'POST', body: fd });
-        if (res.ok) {
-            if (staffModalBs) staffModalBs.hide(); e.target.reset(); loadStaff();
-            Swal.fire('Επιτυχία', 'Προστέθηκε νέο μέλος', 'success');
-        } else Swal.fire('Σφάλμα', 'Απέτυχε', 'error');
-    }
-
-    async function deleteStaff(id) {
-        const r = await Swal.fire({ title: 'Είστε σίγουρος;', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ναι, διαγραφή!', cancelButtonText: 'Όχι' });
-        if (r.isConfirmed) {
-            await fetch(`/api/staff/${id}`, { method: 'DELETE' });
-            loadStaff();
-            Swal.fire('Διαγράφηκε', '', 'success');
+    function togglePassword(btn) {
+        const input = btn.previousElementSibling;
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
+        } else {
+            input.type = 'password';
+            btn.innerHTML = '<i class="fas fa-eye"></i>';
         }
     }
 
     async function saveSettings(e) {
         e.preventDefault();
+        const btn = document.getElementById('btnSaveSettings');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Αποθήκευση...';
+        btn.disabled = true;
+
         const fd = new FormData(e.target);
+
+        // ... (data collection) ...
         const data = {
-            api_key: fd.get('api_key'), base_url: fd.get('base_url'), sender_id: fd.get('sender_id'),
-            template_reg: fd.get('tpl_reg'), template_ready: fd.get('tpl_rdy'), template_del: fd.get('tpl_del'),
-            channels_reg: fd.get('ch_reg_sms') ? 'sms' : '',
-            channels_ready: fd.get('ch_rdy_sms') ? 'sms' : '',
-            channels_del: fd.get('ch_del_sms') ? 'sms' : ''
+            active_channel: fd.get('active_channel'),
+            api_key_sms: fd.get('api_key_sms'), base_url_sms: fd.get('base_url_sms'), sender_id_sms: fd.get('sender_id_sms'),
+            api_key_wa: fd.get('api_key_wa'), base_url_wa: fd.get('base_url_wa'), number_wa: fd.get('number_wa'),
+            api_key_viber: fd.get('api_key_viber'), base_url_viber: fd.get('base_url_viber'), sender_viber: fd.get('sender_viber'),
+            template_reg: fd.get('tpl_reg'), template_ready: fd.get('tpl_rdy'), template_del: fd.get('tpl_del')
         };
-        const res = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-        if (res.ok) Swal.fire('Αποθηκεύτηκε', '', 'success');
-        else Swal.fire('Σφάλμα', '', 'error');
+
+        try {
+            const res = await fetch('/api/settings', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+            });
+            if (res.ok) {
+                Swal.fire('Αποθηκεύτηκε', 'Οι ρυθμίσεις ενημερώθηκαν επιτυχώς.', 'success');
+                loadSettings();
+            } else {
+                Swal.fire('Σφάλμα', 'Απέτυχε η αποθήκευση.', 'error');
+            }
+        } catch (err) {
+            Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα.', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
     }
 
     function openStatusModal(id, status) {
