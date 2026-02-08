@@ -3,14 +3,22 @@
 A locally hosted device tracking SaaS for repair shops.
 
 ## Features
-- **Public Page**: Customer tracking via Device ID.
+- **Public Page**: 
+  - Customer tracking via Device ID (SERxxxxxx).
+  - **Lottie Animations**: Visual status updates for each repair stage.
 - **Dashboard**:
-  - **Stats**: Overview cards (Total, In Repair, Ready, Archived).
-  - **Active Devices**: Manage current repairs.
-  - **Archive**: Searchable history of delivered devices.
-  - **Staff Management**: Admin-only panel to manage employees.
+  - **Stats**: Real-time overview cards with status filtering.
+  - **Active Devices**: Manage repairs with color-coded status badges.
+  - **Archive**: Searchable history of completed and delivered devices.
+  - **Admin Panel**: Manage staff accounts and **System Settings**.
+  - **SMS Integration**: Configure Infobip for automated status notifications.
 - **Label Printing**: 58mm/80mm thermal printer compatible QR codes.
-- **Timeline**: Visual status updates.
+- **Workflow**: Defined lifecycle with Greek status updates:
+  1. **Παραλήφθηκε** (Received)
+  2. **Υπό Έλεγχο** (Checking)
+  3. **Υπό Επισκευή** (Repairing)
+  4. **Έτοιμο** (Ready)
+  5. **Αρχείο** (Archived)
 
 ## Setup & Run
 
