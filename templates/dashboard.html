@@ -682,5 +682,131 @@
             document.getElementById('printModal').classList.remove('d-none');
         } catch (e) { console.error(e); }
     }
+
+    // --- MISSING HANDLERS ---
+    async function handleAddDevice(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Καταχώρηση...';
+        btn.disabled = true;
+
+        const fd = new FormData(e.target);
+
+        try {
+            const res = await fetch('/add_device', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (addDeviceModalBs) addDeviceModalBs.hide();
+                e.target.reset();
+                Swal.fire('Επιτυχία', `Η συσκευή καταχωρήθηκε με ID: ${data.id}`, 'success');
+                // Refresh list
+                loadStats();
+                if (currentView === 'active') loadDevices();
+
+                // Print Label Prompt
+                // printLabel(data.id, fd.get('customer_name'), fd.get('model'), data.created_by);
+            } else {
+                Swal.fire('Σφάλμα', data.error || 'Απέτυχε η καταχώρηση', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function handleUpdateStatus(e) {
+        e.preventDefault();
+        const id = document.getElementById('statusDeviceId').value;
+        const newStatus = document.getElementById('newStatus').value;
+        const note = document.getElementById('statusNote').value;
+
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Αποθήκευση...';
+        btn.disabled = true;
+
+        const fd = new FormData();
+        fd.append('status', newStatus);
+        fd.append('note', note);
+
+        try {
+            const res = await fetch(`/update_status/${id}`, { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (statusModalBs) statusModalBs.hide();
+                Swal.fire('Ενημερώθηκε', 'Η κατάσταση άλλαξε επιτυχώς.', 'success');
+                loadStats();
+                loadDevices();
+
+                // Log notification result if any
+                if (newStatus === 'Έτοιμο') {
+                    // The backend handles sending, we just show success. 
+                    // Could check logs or return variable in JSON if detail needed.
+                    console.log("Notification trigger requested");
+                }
+            } else {
+                Swal.fire('Σφάλμα', data.error || 'Απέτυχε η ενημέρωση', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function handleAddStaff(e) {
+        e.preventDefault();
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Προσθήκη...';
+        btn.disabled = true;
+
+        const fd = new FormData(e.target);
+
+        try {
+            const res = await fetch('/api/staff', { method: 'POST', body: fd });
+            const data = await res.json();
+
+            if (res.ok) {
+                if (staffModalBs) staffModalBs.hide();
+                e.target.reset();
+                Swal.fire('Επιτυχία', 'Ο χρήστης προστέθηκε.', 'success');
+                loadStaff();
+            } else {
+                Swal.fire('Σφάλμα', data.message || 'Απέτυχε η προσθήκη', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα', 'error');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    async function deleteStaff(id) {
+        if (!confirm('Είστε σίγουροι για τη διαγραφή;')) return;
+
+        try {
+            const res = await fetch(`/api/staff/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+
+            if (res.ok) {
+                loadStaff();
+            } else {
+                Swal.fire('Σφάλμα', data.message || 'Απέτυχε η διαγραφή', 'error');
+            }
+        } catch (err) {
+            Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα', 'error');
+        }
+    }
 </script>
 {% endblock %}

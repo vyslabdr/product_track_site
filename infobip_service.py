@@ -51,7 +51,7 @@ class InfobipService:
         if channel == 'sms':
             success, error_msg = InfobipService._send_sms(settings, phone, message_text)
         elif channel == 'whatsapp':
-            success, error_msg = InfobipService._send_whatsapp(settings, phone, message_text)
+            success, error_msg = InfobipService._send_whatsapp(settings, phone, device)
         elif channel == 'viber':
             success, error_msg = InfobipService._send_viber(settings, phone, message_text)
         else:
@@ -105,33 +105,54 @@ class InfobipService:
             return False, str(e)
 
     @staticmethod
-    def _send_whatsapp(settings, phone, text):
-        # Note: Infobip WhatsApp usually requires Templates for business-initiated messages.
-        # This implementation assumes a session message OR a basic text endpoint if available for sandbox.
-        # For production, you'd strictly use /whatsapp/1/message/template
-        
+    def _send_whatsapp(settings, phone, device):
+        """
+        Sends WhatsApp Template Message (Infobip).
+        Adapted to use 'test_whatsapp_template_en' with customer name placeholder.
+        """
         if not settings.infobip_api_key_wa or not settings.infobip_base_url_wa:
             return False, "WhatsApp Credentials missing"
 
-        url = f"https://{settings.infobip_base_url_wa}/whatsapp/1/message/text"
+        # Construct URL (User provided "jrd1e4.api.infobip.com" -> https://jrd1e4.api.infobip.com/whatsapp/1/message/template)
+        # We use strict base_url from settings to allow flexibility.
+        url = f"https://{settings.infobip_base_url_wa}/whatsapp/1/message/template"
+        
         headers = {
             'Authorization': f'App {settings.infobip_api_key_wa}',
             'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
+        
+        # User defined template: "test_whatsapp_template_en"
+        # Placeholder: Customer Name
+        customer_name = device.customer.name.upper() if device.customer and device.customer.name else "CUSTOMER"
+
         payload = {
-            "from": settings.infobip_number_wa,
-            "to": phone,
-            "content": {"text": text}
+            "messages": [
+                {
+                    "from": settings.infobip_number_wa,
+                    "to": phone,
+                    "content": {
+                        "templateName": "test_whatsapp_template_en", 
+                        "templateData": {
+                            "body": {
+                                "placeholders": [customer_name]
+                            }
+                        },
+                        "language": "en"
+                    }
+                }
+            ]
         }
 
         try:
             response = requests.post(url, json=payload, headers=headers)
+            # 200 OK means received by Infobip
             if response.status_code == 200:
                 return True, None
             return False, f"HTTP {response.status_code}: {response.text}"
         except Exception as e:
-            return False, str(e)
+            return False, f"Request Error: {str(e)}"
 
     @staticmethod
     def _send_viber(settings, phone, text):

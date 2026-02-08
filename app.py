@@ -14,15 +14,40 @@ import logging
 logging.basicConfig(filename='app.log', level=logging.INFO, 
                     format='%(asctime)s %(levelname)s: %(message)s')
 
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(BASE_DIR, 'repair_shop_v7.db')
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///repair_shop_v7.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+def init_db():
+    """Ensure database tables exist on startup."""
+    with app.app_context():
+        try:
+            db.create_all()
+            # Check for Admin
+            if not User.query.filter_by(username='admin').first():
+                 logging.info("Auto-creating admin user...")
+                 # Generate hash for 'admin123'
+                 # We need to import generate_password_hash here or ensure it is available
+                 from werkzeug.security import generate_password_hash
+                 admin = User(username='admin', password_hash=generate_password_hash('admin123'), role='admin')
+                 db.session.add(admin)
+                 db.session.commit()
+                 logging.info("Admin user created (admin/admin123).")
+        except Exception as e:
+            logging.error(f"Database Initialization Error: {e}")
+
+# Initialize DB on import (or run manually)
+init_db()
 
 # --- Helpers ---
 @login_manager.user_loader
@@ -387,47 +412,51 @@ def add_device():
             'created_by': current_user.username
         })
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logging.error(f"Error adding device: {e}")
+        return jsonify({'success': False, 'error': 'Server Error'}), 500
 
 @app.route('/update_status/<int:device_id>', methods=['POST'])
 @login_required
 def update_status(device_id):
     device = Device.query.get_or_404(device_id)
-    new_status = request.form.get('status')
-    note = request.form.get('note', '')
-    
-    old_status = device.status
-    device.status = new_status
-    
-    # If moving to "In Repair" (Στην επισκευή), assign current user as technician if not set?
-    # User: "Τεχνικός: (İşlemi kim yapıyor?)"
-    if new_status == 'Υπό Επισκευή' and not device.technician_id:
-        device.technician_id = current_user.id
-
-    if new_status == 'Αρχείο':
-        device.is_archived = True
-    else:
-        device.is_archived = False # Allow un-archiving
+    try:
+        new_status = request.form.get('status')
+        note = request.form.get('note', '')
         
-    log = TimelineLog(device=device, status=new_status, note=note, user_id=current_user.id)
-    db.session.add(log)
-    db.session.commit()
-    
-    # TRIGGER NOTIFICATION via INFOBIP SERVICE
-    if new_status == 'Έτοιμο':
-        try:
-            from infobip_service import InfobipService
-            success, msg = InfobipService.send_notification(device, 'ready')
-            if success:
-                logging.info(f"Notification Sent [ID:{device.tracking_id}]: {msg}")
-            else:
-                logging.error(f"Notification Failed [ID:{device.tracking_id}]: {msg}")
-        except Exception as e:
-             logging.error(f"Notification System Error: {e}")
-    
-    return jsonify({'success': True})
+        old_status = device.status
+        device.status = new_status
+        
+        # If moving to "In Repair" (Στην επισκευή), assign current user as technician if not set?
+        # User: "Τεχνικός: (İşlemi kim yapıyor?)"
+        if new_status == 'Υπό Επισκευή' and not device.technician_id:
+            device.technician_id = current_user.id
+
+        if new_status == 'Αρχείο':
+            device.is_archived = True
+        else:
+            device.is_archived = False # Allow un-archiving
+            
+        log = TimelineLog(device=device, status=new_status, note=note, user_id=current_user.id)
+        db.session.add(log)
+        db.session.commit()
+        
+        # TRIGGER NOTIFICATION via INFOBIP SERVICE
+        if new_status == 'Έτοιμο':
+            try:
+                from infobip_service import InfobipService
+                success, msg = InfobipService.send_notification(device, 'ready')
+                if success:
+                    logging.info(f"Notification Sent [ID:{device.tracking_id}]: {msg}")
+                else:
+                    logging.error(f"Notification Failed [ID:{device.tracking_id}]: {msg}")
+            except Exception as e:
+                 logging.error(f"Notification System Error: {e}")
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error updating status for device {device_id}: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Database Error'}), 500
 
 @app.route('/generate_qr/<device_id>')
 def generate_qr_code(device_id):
@@ -481,26 +510,13 @@ def delete_staff(user_id):
     if user.username == 'admin': # Prevent deleting main admin
         return jsonify({'success': False, 'message': 'Cannot delete main admin'}), 400
         
-    db.session.delete(user)
-    db.session.commit()
-    return jsonify({'success': True})
-
-# --- Init DB ---
-# with app.app_context():
-#     db.create_all()
-#     
-#     # Auto-Seed Admin if not exists
-#     if not User.query.first():
-#         print("Auto-seeding Admin user...")
-#         admin_user = User(
-#             username='admin', 
-#             password_hash=generate_password_hash('admin123'), 
-#             role='admin',
-#             is_first_login=True  # Force change on first login
-#         )
-#         db.session.add(admin_user)
-#         db.session.commit()
-#         print("Admin created: admin / admin123")
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        logging.error(f"Error deleting staff: {e}")
+        return jsonify({'success': False, 'message': 'Database error'}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False) # use_reloader=False to prevent double init in some envs
