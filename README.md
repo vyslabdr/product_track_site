@@ -5,18 +5,19 @@ A locally hosted device tracking SaaS for repair shops.
 ## Features
 - **Public Page**: 
   - Customer tracking via Device ID (SERxxxxxx).
-  - **New:** Displays **Brand & Model** for better context.
-  - **Clean Timeline:** Intelligence logic filters duplicate status updates.
-  - **Glassmorphism UI:** Modern, translucent design.
-  - **Lottie Animations**: Visual status updates for each repair stage.
+  - **New:** Displays **Brand & Model** ("Μοντέλο Συσκευής") for better context.
+  - **Clean Timeline:** Smart filters prevent duplicate status updates from cluttering the view.
+  - **Visuals:** Lottie Animations for each repair stage.
+  - **Localization:** fully localized in Greek.
 - **Dashboard**:
   - **Stats**: Real-time overview cards with status filtering.
   - **Active Devices**: Manage repairs with color-coded status badges.
-  - **Archive**: Searchable history of completed and delivered devices.
+  - **Smart Notifications**: Logic to prevent duplicate SMS/WhatsApp alerts if the status and notes haven't changed.
   - **Admin Panel**: Manage staff accounts and **System Settings**.
-  - **Smart Logic**: Prevents duplicate notifications/timeline entries.
-  - **SMS Integration**: Configure Infobip for automated status notifications.
-- **Label Printing**: 58mm/80mm thermal printer compatible QR codes.
+  - **Infobip Integration**: Configure SMS, WhatsApp, or Viber for automated status updates.
+- **Core Improvements**:
+  - **Centralized Management**: Database initialization and Admin creation are handled automatically by the main application.
+  - **Security**: Forced password change on first login.
 - **Workflow**: Defined lifecycle with Greek status updates:
   1. **Παραλήφθηκε** (Received)
   2. **Υπό Έλεγχο** (Checking)
@@ -28,14 +29,14 @@ A locally hosted device tracking SaaS for repair shops.
 
 1. **Install Dependencies** (if not already done):
    ```bash
-   ./venv/bin/pip install -r requirements.txt
+   pip install -r requirements.txt
    ```
 
 2. **Run the Application**:
    ```bash
-   ./venv/bin/python app.py
+   python app.py
    ```
-   *Note: On first run, `repair_shop.db` will be created automatically.*
+   *Note: On the first run, the database `repair_shop_v7.db` and the default `admin` user will be created automatically.*
 
 3. **Access**:
    - **Public Page**: [http://localhost:5000](http://localhost:5000)
@@ -48,14 +49,9 @@ A locally hosted device tracking SaaS for repair shops.
 - **Password**: `admin123`
 - **First Login**: You will be required to change the password immediately.
 
-### 🔄 Factory Reset
-To wipe the database and start fresh:
-```bash
-python3 reset_db.py
-```
-This will delete all data and recreate the `admin` user with the default password.
+## Factory Reset
+To wipe the database and start fresh, simply delete the `repair_shop_v7.db` file and restart the application.
 
 ## Architecture
 - **Backend**: Python (Flask) + SQLite
-- **Frontend**: HTML5 + Vanilla JS + Tailwind CSS (CDN)
-# product_track_site
+- **Frontend**: HTML5 + Vanilla JS + Bootstrap 5

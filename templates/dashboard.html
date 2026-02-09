@@ -799,6 +799,11 @@
         document.getElementById('newStatus').value = status;
         document.getElementById('statusPublicNote').value = '';
         document.getElementById('statusPrivateNote').value = '';
+
+        if (!statusModalBs) {
+            const el = document.getElementById('statusModal');
+            if (el) statusModalBs = new bootstrap.Modal(el);
+        }
         if (statusModalBs) statusModalBs.show();
     }
 

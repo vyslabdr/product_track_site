@@ -29,15 +29,16 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 def init_db():
-    """Ensure database tables exist on startup."""
+    """Ensure database tables exist on startup and create admin if missing."""
     with app.app_context():
         try:
+            # Create tables if they don't exist
             db.create_all()
+            
             # Check for Admin
             if not User.query.filter_by(username='admin').first():
                  logging.info("Auto-creating admin user...")
                  # Generate hash for 'admin123'
-                 from werkzeug.security import generate_password_hash
                  admin = User(
                      username='admin', 
                      password_hash=generate_password_hash('admin123'), 
@@ -47,6 +48,14 @@ def init_db():
                  db.session.add(admin)
                  db.session.commit()
                  logging.info("Admin user created (admin/admin123).")
+            
+            # Initialize Settings if missing
+            if not SystemSetting.query.first():
+                logging.info("Initializing system settings...")
+                settings = SystemSetting()
+                db.session.add(settings)
+                db.session.commit()
+                
         except Exception as e:
             logging.error(f"Database Initialization Error: {e}")
 
@@ -164,9 +173,6 @@ def manage_settings():
             db.session.commit()
     except Exception as e:
         logging.error(f"Database Error loading settings: {e}")
-        # If table missing, we can try to create? Or just return default structure for now to prevent crash
-        # For this specific user request: "return default empty values or create table"
-        # We'll return a mock settings object or empty dict structure if query fails hard
         return jsonify({'error': 'Database not initialized or Settings table missing', 'details': str(e)}), 500
 
     if request.method == 'POST':
@@ -230,111 +236,39 @@ def track_device():
         return jsonify({'error': 'Not found'}), 404
         
     timeline = []
-    last_status = None
     
-    # Process logs in chronological order first
-    for log in device.logs: # Relationship is usually ordered by timestamp desc in model? Check.
-        # Logic: If status is same as previous, SKIP unless important note?
-        # User requested: "Don't show same status twice".
-        # We need to handle this carefully. If sorting is DESC (newest first), we iterate backwards or check next?
-        # Device.logs is likely backref default (Lazy). Let's sort manually to be sure.
-        pass
-
     # Sort logs NEWEST FIRST for display
     sorted_logs = sorted(device.logs, key=lambda x: x.timestamp, reverse=True)
     
-    processed_timeline = []
+    # Logic: Show latest unique statuses (consecutive duplicates hidden)
+    # Actually, for the user to see the LATEST update of a status, we should probably keep distinct contiguous blocks?
+    # Simple rule: If I have Status A (New), Status A (Old)... I show Status A (New).
     
-    # We iterate and only add if status != next_status (since it's reverse order)
-    # Actually, simpler: Show Newest status. 
-    # If the next log (older) has same status, hide it? 
-    # USER REQUEST: "admin presses 'Checking' twice -> timeline shouldn't show 'Checking' twice".
-    # So we should filter out adjacent duplicates.
+    # Better approach: Just filter out consecutive duplicates from the display list.
+    # Group by status change.
     
-    for i, log in enumerate(sorted_logs):
-        # Check against the NEXT log (which is the newer one in time if we were iterating asc, but here we are desc)
-        # Wait, if we have [Status A, Status A, Status B], we want to show the LATEST Status A, and hide the older Status A?
-        # Or show the Older Status A (when it started) and hide the newer "update" if it's just a note?
-        # Usually "Timeline" shows when things happened.
-        # User said: "Admin presses checking 2nd time, don't show it twice".
-        # So if we have:
-        # 12:00 Checking (Log 1)
-        # 12:05 Checking (Log 2)
-        # We likely want to show 12:05 Checking (Latest update). 
-        # But if 12:05 was just a note "Still checking", we might want to show that note under "Checking".
-        # Let's simple de-dup: If log[i].status == log[i+1].status, merge?
-        
-        # Simple Approach: Iterate and skip if status is same as *previous processed*? 
-        # No, because we want to keep the LATEST one usually.
-        
-        # Let's filter:
-        # Keep log if: It's the first one OR status != previous_kept_log.status?
-        # If we list Newest -> Oldest:
-        # Log 1 (New, Checking) -> Keep
-        # Log 2 (Old, Checking) -> Skip? 
-        # If we skip Log 2, we lose the info of when "Checking" *started*?
-        # Maybe user wants to see the *Start* of the status?
-        # "Admin presses checking TWICE".
-        # 1. Status -> Checking. 
-        # 2. Update -> Checking.
-        # Result: "Checking" appears twice.
-        # User wants it ONCE.
-        # Ideally we show the *Latest* one? Or the *First* one?
-        # Let's show the LATEST one (top of timeline) if they match.
-        
-        should_show = True
-        if i < len(sorted_logs) - 1:
-            next_log = sorted_logs[i+1] # This is OLDER
-            if log.status == next_log.status:
-                # This log and older log have same status. 
-                # We are currently at the NEWER log.
-                # If we show this, and then later show the older one, we have duplicates.
-                # We should HIDE the OLDER one.
-                # But we are iterating i... so we decide for 'next_log' later?
-                # No, let's decide for CURRENT log.
-                # If i > 0 (there is a NEWER log above me), and newer_log.status == my.status -> Hide ME.
-                pass
-        
-    # Better logic: Filter list first.
-    # We want to represent distinct *Phase Changes*.
-    
-    clean_timeline = []
-    seen_statuses = set() 
-    # But wait, status can go A -> B -> A. We shouldn't hide the second A group.
-    # We only hide consecutive duplicates.
-    
-    # Iterate standard chronological (Old -> New) to build clean list
+    # Work on logs chronologically (Old -> New) to establish the timeline
     chronological = sorted(device.logs, key=lambda x: x.timestamp)
-    non_duplicate_logs = []
+    unique_timeline = []
     
-    last_added_status = None
+    last_status = None
     for log in chronological:
-        if log.status != last_added_status:
-            non_duplicate_logs.append(log)
-            last_added_status = log.status
+        # We add the log if status changed OR if there's a specific public note different from standard?
+        # Let's strict de-dup on Status for the simplified view
+        if log.status != last_status:
+           unique_timeline.append(log)
+           last_status = log.status
         else:
-            # Same status. Update the last added log to be this one? 
-            # Or just ignore this one?
-            # If we ignore this one, we show the timestamp of the *START* of the status.
-            # If we replace, we show timestamp of *LATEST* update.
-            # Usually users want to know "When did it update?". 
-            # If I add a note, I want to see the note.
-            # Proposed: If same status, but has Public Note, show it as an "Update" item?
-            # User request: "Ayni durumlar iki kez gosterilmemeli" => "Same statuses shouldn't be shown twice".
-            # Let's strictly de-dup by Status.
-            # If we have A -> A' -> B. We show A... then B. what about A'?
-            # If A' has a note, we might lose it. 
-            # Let's just update the "Latest" pointer for that status block?
-            # Let's stick to: Hide consecutive duplicates.
-            # If I stick to strict "Hide matches", I keep the FIRST one (Start time).
-            pass
-            
-            # If there is a public note, we might want to keep it?
-            if log.public_note:
-                 non_duplicate_logs.append(log) # Keep it if it has a note.
+           # Same status. Update the existing entry to be this newer one?
+           # If we update, we show the LATEST time. 
+           # If we don't, we show the FIRST time.
+           # Let's update the last entry to the newer one (so date reflects latest update)
+           if unique_timeline:
+               unique_timeline.pop()
+           unique_timeline.append(log)
     
-    # Reverse for display (Newest top)
-    final_logs = sorted(non_duplicate_logs, key=lambda x: x.timestamp, reverse=True)
+    # Now reverse for display
+    final_logs = sorted(unique_timeline, key=lambda x: x.timestamp, reverse=True)
     
     for log in final_logs:
         staff_name = log.user.username if log.user else 'System'
@@ -351,17 +285,6 @@ def track_device():
             'brand': device.brand,
             'status': device.status,
             'description': device.description,
-            'timeline': timeline
-        }
-    })
-    
-    # Notification History for Timeline (Optional visibility? Requirement said "Device Details". This is public track.)
-    # Let's keep public track minimal.
-        
-    return jsonify({
-        'device': {
-            'model': device.model,
-            'status': device.status,
             'timeline': timeline
         }
     })
@@ -417,6 +340,12 @@ def update_technician_notes(device_id):
     try:
         device = Device.query.get_or_404(device_id)
         notes = request.json.get('technician_notes')
+        
+        # Smart Alert: Check if notes actually changed? 
+        # Technician notes are internal, usually don't trigger notifications to user.
+        # But if the user meant "Don't add a timeline log if nothing changed", that's in update_status.
+        # Here just saving text.
+        
         device.technician_notes = notes
         db.session.commit()
         return jsonify({'success': True})
@@ -427,8 +356,6 @@ def update_technician_notes(device_id):
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Initial load still passes active devices for SEO/Non-JS fallback if needed, but client prefers AJAX.
-    # We will pass basic context and let JS fetch specific tabs.
     return render_template('dashboard.html', user=current_user)
 
 @app.route('/api/devices')
@@ -441,15 +368,11 @@ def get_devices():
     
     # User Filter (Ownership or Technician)
     if user_id:
-        # Show devices created by OR assigned to this user
-        # Also could filter logged actions, but visual ownership usually means "My Tasks" (Technician) or "My Entries"
         user = User.query.get(user_id)
         if user:
-            # Complex filter: (technician_id == uid) OR (created_by_id == uid)
             query = query.filter((Device.technician_id == user_id) | (Device.created_by_id == user_id))
 
     # Status Filter - Greek Terms
-    # Παραλήφθηκε (Yellow), Υπό Έλεγχο (Blue), Υπό Επισκευή (Orange), Έτοιμο (Green), Αρχείο (Gray)
     if status_filter == 'archive':
         query = query.filter_by(is_archived=True)
     elif status_filter == 'ready':
@@ -476,7 +399,7 @@ def get_devices():
         'created_at': d.created_at.strftime('%d/%m/%Y'),
         'technician': d.technician.username if d.technician else '-',
         'created_by': d.created_by.username if d.created_by else '-',
-        'brand': d.brand or ''  # Added brand
+        'brand': d.brand or ''
     } for d in devices])
 
 @app.route('/api/stats')
@@ -568,8 +491,6 @@ def add_device():
         db.session.add(log)
         db.session.commit()
 
-
-        
         # Return token/id and also Who created it (for label)
         return jsonify({
             'success': True, 
@@ -587,12 +508,34 @@ def update_status(device_id):
     try:
         new_status = request.form.get('status')
         # Dual Notes
-        public_note = request.form.get('public_note', '')
-        private_note = request.form.get('private_note', '')
+        public_note = request.form.get('public_note', '').strip()
+        private_note = request.form.get('private_note', '').strip()
+        
+        # Clean 'None' strings if passed by accident
+        if public_note == 'None': public_note = ''
+        if private_note == 'None': private_note = ''
         
         old_status = device.status
         status_changed = (old_status != new_status)
         
+        # Smart Alert / Anti-Spam Logic
+        # If status is same AND notes are same (or empty), do duplicate check
+        if not status_changed:
+            # Check the LAST log
+            if device.logs:
+                # Get the latest log (assuming insertion order or sort)
+                # We can Query explicitly to be safe
+                last_log = TimelineLog.query.filter_by(device_id=device.id).order_by(TimelineLog.timestamp.desc()).first()
+                if last_log:
+                    # Check if contents match
+                    last_public = last_log.public_note or ''
+                    last_private = last_log.private_note or ''
+                    
+                    if last_public == public_note and last_private == private_note:
+                        # Exact duplicate of the last action. Ignore.
+                        logging.info(f"Duplicate status update ignored for Device {device.tracking_id}")
+                        return jsonify({'success': True, 'message': 'Duplicate update ignored'})
+
         # If moving to "In Repair" (Στην επισκευή), assign current user as technician if not set?
         if new_status == 'Υπό Επισκευή' and not device.technician_id:
             device.technician_id = current_user.id
@@ -617,6 +560,8 @@ def update_status(device_id):
         db.session.commit()
         
         # Smart Notification Logic: Only send if status CHANGED
+        # Also, safeguard against sending notification if it's just a note update?
+        # User requirement: "Smart Notification"
         if status_changed:
             try:
                 # Placeholder for Infobip integration
@@ -628,7 +573,7 @@ def update_status(device_id):
         
         return jsonify({'success': True})
     except Exception as e:
-        logging.error(f"Error updating status for device {device_id}: {e}")
+        logging.error(f"Error updating status for device {device.tracking_id}: {e}")
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Database Error'}), 500
 
