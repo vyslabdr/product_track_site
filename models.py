@@ -29,7 +29,9 @@ class Device(db.Model):
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
     
     model = db.Column(db.String(100), nullable=False)
+    brand = db.Column(db.String(100), nullable=True) # Added Brand
     description = db.Column(db.Text, nullable=True)
+    technician_notes = db.Column(db.Text, nullable=True) # Added Tech Notes
     status = db.Column(db.String(50), default='Παραλήφθηκε') 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     is_archived = db.Column(db.Boolean, default=False)
@@ -48,7 +50,9 @@ class TimelineLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     device_id = db.Column(db.Integer, db.ForeignKey('device.id'), nullable=False)
     status = db.Column(db.String(50), nullable=False)
-    note = db.Column(db.Text, nullable=True)
+    note = db.Column(db.Text, nullable=True) # Keeping for backward compatibility or general logging
+    public_note = db.Column(db.Text, nullable=True) # Added Public Note
+    private_note = db.Column(db.Text, nullable=True) # Added Private Note
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
     # Who did this?

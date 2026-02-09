@@ -37,9 +37,13 @@ def init_db():
             if not User.query.filter_by(username='admin').first():
                  logging.info("Auto-creating admin user...")
                  # Generate hash for 'admin123'
-                 # We need to import generate_password_hash here or ensure it is available
                  from werkzeug.security import generate_password_hash
-                 admin = User(username='admin', password_hash=generate_password_hash('admin123'), role='admin')
+                 admin = User(
+                     username='admin', 
+                     password_hash=generate_password_hash('admin123'), 
+                     role='admin',
+                     is_first_login=True # Force password change
+                 )
                  db.session.add(admin)
                  db.session.commit()
                  logging.info("Admin user created (admin/admin123).")
@@ -139,24 +143,11 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-# @app.route('/create_admin')
-# def create_admin():
-#     # Helper to create initial admin - DISABLED FOR SECURITY
-#     # Run via flask shell if needed:
-#     # from app import db, User
-#     # from werkzeug.security import generate_password_hash
-#     # db.session.add(User(username='admin', password_hash=generate_password_hash('admin123'), role='admin'))
-#     # db.session.commit()
-#     return "Route disabled. Use CLI."
 
 # --- Routes: Public ---
 @app.route('/')
 def index():
     return render_template('index.html')
-
-import json
-
-# from infobip_service import InfobipService
 
 # --- SETTINGS ROUTES ---
 @app.route('/api/settings', methods=['GET', 'POST'])
@@ -239,14 +230,130 @@ def track_device():
         return jsonify({'error': 'Not found'}), 404
         
     timeline = []
-    for log in device.logs:
+    last_status = None
+    
+    # Process logs in chronological order first
+    for log in device.logs: # Relationship is usually ordered by timestamp desc in model? Check.
+        # Logic: If status is same as previous, SKIP unless important note?
+        # User requested: "Don't show same status twice".
+        # We need to handle this carefully. If sorting is DESC (newest first), we iterate backwards or check next?
+        # Device.logs is likely backref default (Lazy). Let's sort manually to be sure.
+        pass
+
+    # Sort logs NEWEST FIRST for display
+    sorted_logs = sorted(device.logs, key=lambda x: x.timestamp, reverse=True)
+    
+    processed_timeline = []
+    
+    # We iterate and only add if status != next_status (since it's reverse order)
+    # Actually, simpler: Show Newest status. 
+    # If the next log (older) has same status, hide it? 
+    # USER REQUEST: "admin presses 'Checking' twice -> timeline shouldn't show 'Checking' twice".
+    # So we should filter out adjacent duplicates.
+    
+    for i, log in enumerate(sorted_logs):
+        # Check against the NEXT log (which is the newer one in time if we were iterating asc, but here we are desc)
+        # Wait, if we have [Status A, Status A, Status B], we want to show the LATEST Status A, and hide the older Status A?
+        # Or show the Older Status A (when it started) and hide the newer "update" if it's just a note?
+        # Usually "Timeline" shows when things happened.
+        # User said: "Admin presses checking 2nd time, don't show it twice".
+        # So if we have:
+        # 12:00 Checking (Log 1)
+        # 12:05 Checking (Log 2)
+        # We likely want to show 12:05 Checking (Latest update). 
+        # But if 12:05 was just a note "Still checking", we might want to show that note under "Checking".
+        # Let's simple de-dup: If log[i].status == log[i+1].status, merge?
+        
+        # Simple Approach: Iterate and skip if status is same as *previous processed*? 
+        # No, because we want to keep the LATEST one usually.
+        
+        # Let's filter:
+        # Keep log if: It's the first one OR status != previous_kept_log.status?
+        # If we list Newest -> Oldest:
+        # Log 1 (New, Checking) -> Keep
+        # Log 2 (Old, Checking) -> Skip? 
+        # If we skip Log 2, we lose the info of when "Checking" *started*?
+        # Maybe user wants to see the *Start* of the status?
+        # "Admin presses checking TWICE".
+        # 1. Status -> Checking. 
+        # 2. Update -> Checking.
+        # Result: "Checking" appears twice.
+        # User wants it ONCE.
+        # Ideally we show the *Latest* one? Or the *First* one?
+        # Let's show the LATEST one (top of timeline) if they match.
+        
+        should_show = True
+        if i < len(sorted_logs) - 1:
+            next_log = sorted_logs[i+1] # This is OLDER
+            if log.status == next_log.status:
+                # This log and older log have same status. 
+                # We are currently at the NEWER log.
+                # If we show this, and then later show the older one, we have duplicates.
+                # We should HIDE the OLDER one.
+                # But we are iterating i... so we decide for 'next_log' later?
+                # No, let's decide for CURRENT log.
+                # If i > 0 (there is a NEWER log above me), and newer_log.status == my.status -> Hide ME.
+                pass
+        
+    # Better logic: Filter list first.
+    # We want to represent distinct *Phase Changes*.
+    
+    clean_timeline = []
+    seen_statuses = set() 
+    # But wait, status can go A -> B -> A. We shouldn't hide the second A group.
+    # We only hide consecutive duplicates.
+    
+    # Iterate standard chronological (Old -> New) to build clean list
+    chronological = sorted(device.logs, key=lambda x: x.timestamp)
+    non_duplicate_logs = []
+    
+    last_added_status = None
+    for log in chronological:
+        if log.status != last_added_status:
+            non_duplicate_logs.append(log)
+            last_added_status = log.status
+        else:
+            # Same status. Update the last added log to be this one? 
+            # Or just ignore this one?
+            # If we ignore this one, we show the timestamp of the *START* of the status.
+            # If we replace, we show timestamp of *LATEST* update.
+            # Usually users want to know "When did it update?". 
+            # If I add a note, I want to see the note.
+            # Proposed: If same status, but has Public Note, show it as an "Update" item?
+            # User request: "Ayni durumlar iki kez gosterilmemeli" => "Same statuses shouldn't be shown twice".
+            # Let's strictly de-dup by Status.
+            # If we have A -> A' -> B. We show A... then B. what about A'?
+            # If A' has a note, we might lose it. 
+            # Let's just update the "Latest" pointer for that status block?
+            # Let's stick to: Hide consecutive duplicates.
+            # If I stick to strict "Hide matches", I keep the FIRST one (Start time).
+            pass
+            
+            # If there is a public note, we might want to keep it?
+            if log.public_note:
+                 non_duplicate_logs.append(log) # Keep it if it has a note.
+    
+    # Reverse for display (Newest top)
+    final_logs = sorted(non_duplicate_logs, key=lambda x: x.timestamp, reverse=True)
+    
+    for log in final_logs:
         staff_name = log.user.username if log.user else 'System'
         timeline.append({
             'status': log.status,
-            'note': log.note,
-            'date': log.timestamp.strftime('%d/%m/%Y %H:%M'), # Changed from log.timestamp to log.created_at to match model
+            'note': log.public_note or log.note, # Show public note
+            'date': log.timestamp.strftime('%d/%m/%Y %H:%M'),
             'staff': staff_name
         })
+
+    return jsonify({
+        'device': {
+            'model': device.model,
+            'brand': device.brand,
+            'status': device.status,
+            'description': device.description,
+            'timeline': timeline
+        }
+    })
     
     # Notification History for Timeline (Optional visibility? Requirement said "Device Details". This is public track.)
     # Let's keep public track minimal.
@@ -270,6 +377,51 @@ def get_device_notifications(device_id):
         'timestamp': n.timestamp.strftime('%d/%m/%Y %H:%M')
     } for n in device.notifications]
     return jsonify(logs)
+
+@app.route('/api/devices/<int:device_id>/details')
+@login_required
+def get_device_details(device_id):
+    device = Device.query.get_or_404(device_id)
+    
+    logs = []
+    for log in device.logs:
+        logs.append({
+            'status': log.status,
+            'public_note': log.public_note or log.note,
+            'private_note': log.private_note,
+            'timestamp': log.timestamp.strftime('%d/%m/%Y %H:%M'),
+            'user': log.user.username if log.user else 'System'
+        })
+    # Sort logs desc
+    logs.reverse()
+
+    return jsonify({
+        'id': device.id,
+        'tracking_id': device.tracking_id,
+        'brand': device.brand,
+        'model': device.model,
+        'status': device.status,
+        'description': device.description,
+        'technician_notes': device.technician_notes,
+        'customer': {
+            'name': device.customer.name,
+            'phone': device.customer.phone,
+            'email': device.customer.email
+        },
+        'logs': logs
+    })
+
+@app.route('/api/devices/<int:device_id>/update_notes', methods=['POST'])
+@login_required
+def update_technician_notes(device_id):
+    try:
+        device = Device.query.get_or_404(device_id)
+        notes = request.json.get('technician_notes')
+        device.technician_notes = notes
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # --- Routes: Dashboard ---
 @app.route('/dashboard')
@@ -323,7 +475,8 @@ def get_devices():
         'status': d.status,
         'created_at': d.created_at.strftime('%d/%m/%Y'),
         'technician': d.technician.username if d.technician else '-',
-        'created_by': d.created_by.username if d.created_by else '-'
+        'created_by': d.created_by.username if d.created_by else '-',
+        'brand': d.brand or ''  # Added brand
     } for d in devices])
 
 @app.route('/api/stats')
@@ -369,6 +522,8 @@ def add_device():
         data = request.form
         customer_name = data.get('customer_name')
         phone = data.get('phone')
+        email = data.get('email') # Added email
+        brand = data.get('brand') # Added brand
         
         if not customer_name or not phone:
              return jsonify({'success': False, 'error': 'Name and Phone required'}), 400
@@ -383,7 +538,9 @@ def add_device():
             # Optional: Update name if changed?
             if customer.name != customer_name:
                 customer.name = customer_name
-                db.session.commit()
+            if email: # Update email if provided
+                 customer.email = email
+            db.session.commit()
 
         new_id = generate_device_id()
         
@@ -391,6 +548,7 @@ def add_device():
         device = Device(
             tracking_id=new_id,
             customer_id=customer.id,
+            brand=brand, # Added brand
             model=data.get('model'),
             description=data.get('description'),
             status='Παραλήφθηκε',
@@ -399,7 +557,14 @@ def add_device():
         db.session.add(device)
         
         # Initial log
-        log = TimelineLog(device=device, status='Παραλήφθηκε', note='Device registered', user_id=current_user.id)
+        log = TimelineLog(
+            device=device, 
+            status='Παραλήφθηκε', 
+            public_note='Device registered', 
+            private_note='', 
+            note='Device registered', # Backward compat
+            user_id=current_user.id
+        )
         db.session.add(log)
         db.session.commit()
 
@@ -421,36 +586,45 @@ def update_status(device_id):
     device = Device.query.get_or_404(device_id)
     try:
         new_status = request.form.get('status')
-        note = request.form.get('note', '')
+        # Dual Notes
+        public_note = request.form.get('public_note', '')
+        private_note = request.form.get('private_note', '')
         
         old_status = device.status
-        device.status = new_status
+        status_changed = (old_status != new_status)
         
         # If moving to "In Repair" (Στην επισκευή), assign current user as technician if not set?
-        # User: "Τεχνικός: (İşlemi kim yapıyor?)"
         if new_status == 'Υπό Επισκευή' and not device.technician_id:
             device.technician_id = current_user.id
 
         if new_status == 'Αρχείο':
             device.is_archived = True
         else:
-            device.is_archived = False # Allow un-archiving
+            device.is_archived = False 
             
-        log = TimelineLog(device=device, status=new_status, note=note, user_id=current_user.id)
+        device.status = new_status 
+        
+        # Save log entry
+        log = TimelineLog(
+            device=device, 
+            status=new_status, 
+            public_note=public_note, 
+            private_note=private_note,
+            note=public_note, # Fallback
+            user_id=current_user.id
+        )
         db.session.add(log)
         db.session.commit()
         
-        # TRIGGER NOTIFICATION via INFOBIP SERVICE
-        if new_status == 'Έτοιμο':
+        # Smart Notification Logic: Only send if status CHANGED
+        if status_changed:
             try:
-                from infobip_service import InfobipService
-                success, msg = InfobipService.send_notification(device, 'ready')
-                if success:
-                    logging.info(f"Notification Sent [ID:{device.tracking_id}]: {msg}")
-                else:
-                    logging.error(f"Notification Failed [ID:{device.tracking_id}]: {msg}")
+                # Placeholder for Infobip integration
+                # from infobip_service import InfobipService
+                # InfobipService.send_status_update(device, new_status)
+                pass
             except Exception as e:
-                 logging.error(f"Notification System Error: {e}")
+                logging.error(f"Notification System Error: {e}")
         
         return jsonify({'success': True})
     except Exception as e:

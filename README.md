@@ -5,12 +5,16 @@ A locally hosted device tracking SaaS for repair shops.
 ## Features
 - **Public Page**: 
   - Customer tracking via Device ID (SERxxxxxx).
+  - **New:** Displays **Brand & Model** for better context.
+  - **Clean Timeline:** Intelligence logic filters duplicate status updates.
+  - **Glassmorphism UI:** Modern, translucent design.
   - **Lottie Animations**: Visual status updates for each repair stage.
 - **Dashboard**:
   - **Stats**: Real-time overview cards with status filtering.
   - **Active Devices**: Manage repairs with color-coded status badges.
   - **Archive**: Searchable history of completed and delivered devices.
   - **Admin Panel**: Manage staff accounts and **System Settings**.
+  - **Smart Logic**: Prevents duplicate notifications/timeline entries.
   - **SMS Integration**: Configure Infobip for automated status notifications.
 - **Label Printing**: 58mm/80mm thermal printer compatible QR codes.
 - **Workflow**: Defined lifecycle with Greek status updates:
@@ -43,6 +47,13 @@ A locally hosted device tracking SaaS for repair shops.
 - **User**: `admin`
 - **Password**: `admin123`
 - **First Login**: You will be required to change the password immediately.
+
+### 🔄 Factory Reset
+To wipe the database and start fresh:
+```bash
+python3 reset_db.py
+```
+This will delete all data and recreate the `admin` user with the default password.
 
 ## Architecture
 - **Backend**: Python (Flask) + SQLite

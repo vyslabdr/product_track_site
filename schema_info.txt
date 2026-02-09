@@ -1,0 +1,31 @@
+--- customer ---
+id (INTEGER)
+name (VARCHAR(100))
+phone (VARCHAR(20))
+email (VARCHAR(100))
+created_at (DATETIME)
+
+--- device ---
+id (INTEGER)
+tracking_id (VARCHAR(20))
+customer_id (INTEGER)
+model (VARCHAR(100))
+description (TEXT)
+status (VARCHAR(50))
+created_at (DATETIME)
+is_archived (BOOLEAN)
+created_by_id (INTEGER)
+technician_id (INTEGER)
+brand (VARCHAR(100))
+technician_notes (TEXT)
+
+--- timeline_log ---
+id (INTEGER)
+device_id (INTEGER)
+status (VARCHAR(50))
+note (TEXT)
+timestamp (DATETIME)
+user_id (INTEGER)
+public_note (TEXT)
+private_note (TEXT)
+

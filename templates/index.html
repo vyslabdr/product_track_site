@@ -102,7 +102,7 @@
             }
 
             // Populate Data
-            document.getElementById('deviceModel').textContent = data.device.model;
+            document.getElementById('deviceModel').textContent = (data.device.brand ? data.device.brand + ' ' : '') + data.device.model;
             document.getElementById('currentStatus').textContent = data.device.status;
 
             // ANIMATION MAPPING
@@ -123,22 +123,26 @@
             const timelineList = document.getElementById('timelineList');
             timelineList.innerHTML = data.device.timeline.map((item, index) => {
                 const animUrl = animMap[item.status];
+
+                // Smart merging for UI: If note exists but status is same as previous (handled backend), handle visuals?
+                // Backend already filters exact duplicates without notes.
+
                 const iconHtml = animUrl
                     ? `<lottie-player src="${animUrl}" background="transparent" speed="1" style="width: 40px; height: 40px;" loop autoplay></lottie-player>`
                     : `<div class="bg-secondary rounded-circle" style="width: 32px; height: 32px;"></div>`;
 
                 return `
-            <div class="timeline-item d-flex">
-                <div class="timeline-icon d-flex align-items-center justify-content-center">
+            <div class="timeline-item d-flex align-items-start">
+                <div class="timeline-icon d-flex align-items-center justify-content-center bg-white shadow-sm border-0">
                     ${iconHtml}
                 </div>
-                <div class="ms-3 w-100">
+                <div class="ms-4 w-100 bg-light p-3 rounded shadow-sm border-start border-3 border-primary">
                     <div class="d-flex justify-content-between align-items-center mb-1">
                         <h5 class="mb-0 fw-bold text-dark">${item.status}</h5>
-                        <small class="text-primary fw-bold">${item.date}</small>
+                        <span class="badge bg-white text-primary border shadow-sm">${item.date}</span>
                     </div>
-                    <p class="text-secondary small mb-1">${item.note || ''}</p>
-                    <span class="badge bg-light text-dark border">User: ${item.staff}</span>
+                    ${item.note ? `<p class="text-secondary small mb-1 mt-2 bg-white p-2 rounded border"><i class="fas fa-info-circle me-1"></i>${item.note}</p>` : ''}
+                    <div class="text-end text-muted text-xs mt-1">Updated by ${item.staff}</div>
                 </div>
             </div>
             `;
@@ -148,6 +152,7 @@
 
         } catch (e) {
             console.error(e);
+            Swal.fire('Σφάλμα', 'Πρόβλημα επικοινωνίας', 'error');
         }
     }
 </script>

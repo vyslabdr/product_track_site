@@ -160,11 +160,23 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Τηλέφωνο</label>
-                        <input type="text" name="phone" required class="form-control" autocomplete="off">
+                        <input type="text" name="phone" required class="form-control" value="+30" autocomplete="off">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Μοντέλο Συσκευής</label>
-                        <input type="text" name="model" required class="form-control" autocomplete="off">
+                        <label class="form-label fw-bold">Email (Προαιρετικό)</label>
+                        <input type="email" name="email" class="form-control" autocomplete="off">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Μάρκα (Brand)</label>
+                            <input type="text" name="brand" required class="form-control" placeholder="π.χ. Samsung"
+                                autocomplete="off">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Μοντέλο</label>
+                            <input type="text" name="model" required class="form-control" placeholder="π.χ. Galaxy S21"
+                                autocomplete="off">
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Περιγραφή Προβλήματος</label>
@@ -202,8 +214,14 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Σημείωση</label>
-                        <textarea id="statusNote" rows="3" class="form-control"></textarea>
+                        <label class="form-label fw-bold small text-muted">Σημείωση Πελάτη (Public)</label>
+                        <textarea id="statusPublicNote" rows="2" class="form-control"
+                            placeholder="Ορατό στον πελάτη..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-danger">Σημείωση Τεχνικού (Private)</label>
+                        <textarea id="statusPrivateNote" rows="2" class="form-control"
+                            placeholder="Εσωτερική σημείωση..."></textarea>
                     </div>
                     <div class="d-flex justify-content-end">
                         <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Άκυρο</button>
@@ -248,6 +266,26 @@
     </div>
 </div>
 
+<!-- Device Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-corporate text-white">
+                <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Λεπτομέρειες Συσκευής</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="detailsContent" class="text-center">
+                    <div class="spinner-border"></div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Κλείσιμο</button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- PRINT MODAL -->
 <div id="printModal"
@@ -327,7 +365,7 @@
     let cachedData = [];
 
     // Bootstrap Modal instances
-    let addDeviceModalBs, statusModalBs, staffModalBs;
+    let addDeviceModalBs, statusModalBs, staffModalBs, detailsModalBs;
 
     document.addEventListener('DOMContentLoaded', () => {
         loadStats();
@@ -337,6 +375,7 @@
         if (document.getElementById('addDeviceModal')) addDeviceModalBs = new bootstrap.Modal(document.getElementById('addDeviceModal'));
         if (document.getElementById('statusModal')) statusModalBs = new bootstrap.Modal(document.getElementById('statusModal'));
         if (document.getElementById('staffModal')) staffModalBs = new bootstrap.Modal(document.getElementById('staffModal'));
+        if (document.getElementById('detailsModal')) detailsModalBs = new bootstrap.Modal(document.getElementById('detailsModal'));
     });
 
     // --- FILTERS ---
@@ -453,13 +492,13 @@
 
             html += `
             <div class="col-md-6 col-lg-4">
-                <div class="card bg-white text-dark border-0 shadow-sm h-100 hover-shadow transition">
+                <div class="card bg-white text-dark border-0 shadow-sm h-100 hover-shadow transition cursor-pointer" onclick="openDeviceDetails(${d.id})">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                              <span class="badge bg-light text-secondary border font-monospace">${d.tracking_id}</span>
                              <span class="badge ${badgeClass}" style="${badgeStyle}">${d.status}</span>
                         </div>
-                        <h5 class="card-title fw-bold text-truncate">${d.model}</h5>
+                        <h5 class="card-title fw-bold text-truncate">${d.brand ? d.brand + ' ' : ''}${d.model}</h5>
                         <div class="card-text text-muted small mb-3">
                              <div><i class="fas fa-user me-2"></i>${d.customer_name}</div>
                              <div><i class="fas fa-phone me-2"></i>${d.customer_phone || d.phone}</div>
@@ -468,9 +507,9 @@
                         
                         <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
                              <small class="text-muted text-xs">${d.created_at} <span class="ms-1">από ${d.created_by}</span></small>
-                             <div>
+                             <div onclick="event.stopPropagation()">
                                 <button class="btn btn-sm btn-outline-secondary me-1" onclick="printLabel('${d.tracking_id}', '${d.customer_name}', '${d.model}', '${d.created_by}')" title="Print"><i class="fas fa-print"></i></button>
-                                ${currentView === 'active' ? `<button class="btn btn-sm btn-outline-primary" onclick="openStatusModal('${d.id}', '${d.status}')" title="Edit"><i class="fas fa-edit"></i></button>` : ''}
+                                ${currentView === 'active' ? `<button class="btn btn-sm btn-outline-primary" onclick="openStatusModal(event, '${d.id}', '${d.status}')" title="Edit"><i class="fas fa-edit"></i></button>` : ''}
                              </div>
                         </div>
                     </div>
@@ -665,9 +704,101 @@
         }
     }
 
-    function openStatusModal(id, status) {
+    async function openDeviceDetails(id) {
+        if (detailsModalBs) detailsModalBs.show();
+        const container = document.getElementById('detailsContent');
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
+        try {
+            const res = await fetch(`/api/devices/${id}/details`);
+            const data = await res.json();
+
+            let timelineHtml = '<ul class="list-group list-group-flush">';
+            let lastStatus = null;
+
+            data.logs.forEach(log => {
+                // If status is same as previous (which is "next" in this reversed chronological list), 
+                // we might want to hide the status badge and just show the note?
+                // Actually, let's just make the status text muted or smaller if it's a repeat.
+
+                let statusDisplay = `<strong>${log.status}</strong>`;
+                if (log.status === lastStatus) {
+                    statusDisplay = `<span class="text-muted small"><i class="fas fa-caret-up me-1"></i> (Ίδια κατάσταση)</span>`;
+                }
+                lastStatus = log.status; // Update tracking
+
+                timelineHtml += `
+                <li class="list-group-item bg-transparent">
+                    <div class="d-flex justify-content-between">
+                        <div>${statusDisplay}</div>
+                        <small class="text-muted">${log.timestamp}</small>
+                    </div>
+                    ${log.public_note ? `<div class="small text-muted"><i class="fas fa-comment me-1"></i>${log.public_note}</div>` : ''}
+                    ${log.private_note ? `<div class="small text-danger bg-danger-subtle p-1 rounded mt-1"><i class="fas fa-user-secret me-1"></i>${log.private_note}</div>` : ''}
+                    <div class="text-end small text-muted fst-italic">- ${log.user}</div>
+                </li>`;
+            });
+            timelineHtml += '</ul>';
+
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6 border-end">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3">Πληροφορίες Πελάτη</h6>
+                        <div class="mb-3">
+                            <label class="small text-muted">Ονοματεπώνυμο</label>
+                            <div class="fw-bold fs-5">${data.customer.name}</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="small text-muted">Τηλέφωνο</label>
+                            <div><a href="tel:${data.customer.phone}" class="text-decoration-none fw-bold"><i class="fas fa-phone me-2"></i>${data.customer.phone}</a></div>
+                        </div>
+                        ${data.customer.email ? `<div class="mb-3"><label class="small text-muted">Email</label><div>${data.customer.email}</div></div>` : ''}
+                        
+                        <h6 class="text-uppercase text-secondary fw-bold small mt-4 mb-3">Πληροφορίες Συσκευής</h6>
+                        <div class="mb-2"><strong>ID:</strong> <span class="font-monospace bg-light px-2 rounded">${data.tracking_id}</span></div>
+                        <div class="mb-2"><strong>Μάρκα:</strong> ${data.brand || '-'}</div>
+                        <div class="mb-2"><strong>Μοντέλο:</strong> ${data.model}</div>
+                        <div class="mb-2 bg-light p-2 rounded"><em>${data.description || '-'}</em></div>
+                        
+                        <div class="mt-4">
+                            <label class="form-label fw-bold small text-danger">Τεχνικές Σημειώσεις (Εσωτερικό)</label>
+                            <textarea id="techNotesInput" class="form-control" rows="4">${data.technician_notes || ''}</textarea>
+                            <button onclick="saveTechNotes(${data.id})" class="btn btn-sm btn-danger mt-2 w-100">Αποθήκευση Σημειώσεων</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-uppercase text-secondary fw-bold small mb-3">Ιστορικό Εργασιών</h6>
+                        <div class="overflow-auto border rounded bg-white" style="max-height: 400px;">
+                            ${timelineHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = '<div class="alert alert-danger">Σφάλμα φόρτωσης λεπτομερειών</div>';
+        }
+    }
+
+    async function saveTechNotes(id) {
+        const notes = document.getElementById('techNotesInput').value;
+        try {
+            const res = await fetch(`/api/devices/${id}/update_notes`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ technician_notes: notes })
+            });
+            if (res.ok) Swal.fire('Επιτυχία', 'Οι σημειώσεις αποθηκεύτηκαν.', 'success');
+            else Swal.fire('Σφάλμα', 'Απέτυχε η αποθήκευση.', 'error');
+        } catch (e) { Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα.', 'error'); }
+    }
+
+    function openStatusModal(e, id, status) {
+        e.stopPropagation(); // Prevent opening details modal
         document.getElementById('statusDeviceId').value = id;
         document.getElementById('newStatus').value = status;
+        document.getElementById('statusPublicNote').value = '';
+        document.getElementById('statusPrivateNote').value = '';
         if (statusModalBs) statusModalBs.show();
     }
 
@@ -723,7 +854,8 @@
         e.preventDefault();
         const id = document.getElementById('statusDeviceId').value;
         const newStatus = document.getElementById('newStatus').value;
-        const note = document.getElementById('statusNote').value;
+        const publicNote = document.getElementById('statusPublicNote').value;
+        const privateNote = document.getElementById('statusPrivateNote').value;
 
         const btn = e.target.querySelector('button[type="submit"]');
         const originalText = btn.innerHTML;
@@ -732,7 +864,8 @@
 
         const fd = new FormData();
         fd.append('status', newStatus);
-        fd.append('note', note);
+        fd.append('public_note', publicNote);
+        fd.append('private_note', privateNote);
 
         try {
             const res = await fetch(`/update_status/${id}`, { method: 'POST', body: fd });
@@ -747,8 +880,6 @@
                 // Log notification result if any
                 if (newStatus === 'Έτοιμο') {
                     // The backend handles sending, we just show success. 
-                    // Could check logs or return variable in JSON if detail needed.
-                    console.log("Notification trigger requested");
                 }
             } else {
                 Swal.fire('Σφάλμα', data.error || 'Απέτυχε η ενημέρωση', 'error');
@@ -808,5 +939,21 @@
             Swal.fire('Σφάλμα', 'Δικτυακό πρόβλημα', 'error');
         }
     }
+    // Make functions available globally for HTML onclick attributes
+    window.openDeviceDetails = openDeviceDetails;
+    window.openStatusModal = openStatusModal;
+    window.printLabel = printLabel;
+    window.handleAddDevice = handleAddDevice;
+    window.handleUpdateStatus = handleUpdateStatus;
+    window.handleAddStaff = handleAddStaff;
+    window.deleteStaff = deleteStaff;
+    window.filterByStatus = filterByStatus;
+    window.filterByStaff = filterByStaff;
+    window.clearStaffFilter = clearStaffFilter;
+    window.filterList = filterList;
+    window.saveSettings = saveSettings;
+    window.togglePassword = togglePassword;
+    window.saveTechNotes = saveTechNotes;
+    window.switchView = switchView;
 </script>
 {% endblock %}
